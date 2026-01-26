@@ -30,32 +30,32 @@ const DashboardEstadisticas = ({ tickets, comercios }) => {
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="grid grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-gray-500 text-sm font-medium mb-2">Gasto Total (Mes)</h3>
-          <p className="text-3xl font-bold text-gray-900">
+          <p className="text-2xl md:text-3xl font-bold text-gray-900">
             ${totalGastado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
           </p>
           <div className="mt-2 flex items-center text-sm text-green-600">
             <span>+12.5% vs mes anterior</span>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-gray-500 text-sm font-medium mb-2">Tickets Facturados</h3>
-          <p className="text-3xl font-bold text-gray-900">{ticketsCompletados.length}</p>
+          <p className="text-2xl md:text-3xl font-bold text-gray-900">{ticketsCompletados.length}</p>
           <div className="mt-2 flex items-center text-sm text-gray-600">
             <span>De {tickets.length} tickets escaneados</span>
           </div>
         </div>
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+        <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
           <h3 className="text-gray-500 text-sm font-medium mb-2">Promedio por Ticket</h3>
-          <p className="text-3xl font-bold text-gray-900">
+          <p className="text-2xl md:text-3xl font-bold text-gray-900">
             ${ticketsCompletados.length ? (totalGastado / ticketsCompletados.length).toLocaleString('es-MX', { minimumFractionDigits: 2 }) : '0.00'}
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
           <h3 className="font-semibold text-gray-800 mb-6">Gastos por Comercio</h3>
           <div className="space-y-4">
@@ -507,7 +507,10 @@ function FacturacionAutomatica() {
     try {
       const response = await fetch(backendUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
+        },
         body: JSON.stringify({
           ticket: {
             id: ticket.id,
@@ -620,7 +623,8 @@ function FacturacionAutomatica() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6" style={{ backgroundColor: '#f5f5f5' }}>
+  return (
+    <div className="min-h-screen bg-gray-50 p-3 md:p-6" style={{ backgroundColor: '#f5f5f5' }}>
       {/* Modal de escaneo QR manual */}
       {escaneoQR && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -662,35 +666,36 @@ function FacturacionAutomatica() {
 
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Card 1: Cabecera Principal */}
-        <div className="rounded-2xl shadow-xl p-6" style={{ backgroundColor: '#000052' }}>
-          <div className="flex items-center justify-between pb-4 border-b border-white/20">
-            <div className="flex items-center gap-4">
+        <div className="rounded-2xl shadow-xl p-4 md:p-6 text-center md:text-left" style={{ backgroundColor: '#000052' }}>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 pb-4 border-b border-white/20">
+            <div className="flex flex-col md:flex-row items-center gap-4">
               <img
                 src={logoRotulate}
                 alt="Rotulate Soluciones Gráficas"
-                className="h-12"
+                className="h-10 md:h-12"
               />
               <div>
-                <h1 className="text-2xl font-bold text-white">
-                  Sistema de Facturación Automática de Tickets de consumo
+                <h1 className="text-lg md:text-2xl font-bold text-white">
+                  Sistema de Facturación Automática
                 </h1>
+                <p className="text-white/60 text-xs md:text-sm">Tickets de consumo • Robot México</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setVista(vista === 'facturacion' ? 'estadisticas' : 'facturacion')}
-                className={`p-2 rounded-lg transition-colors flex items-center gap-2 ${vista === 'estadisticas' ? 'bg-orange-500 text-white' : 'hover:bg-white/10 text-white'}`}
+                className={`p-2 rounded-lg transition-all flex items-center gap-2 ${vista === 'estadisticas' ? 'bg-orange-500 text-white shadow-lg' : 'hover:bg-white/10 text-white'}`}
                 title="Estadísticas"
               >
-                <BarChart2 size={24} style={{ color: '#ffffff' }} />
-                <span className="font-medium text-white">Estadísticas</span>
+                <BarChart2 size={20} className="md:w-6 md:h-6" style={{ color: '#ffffff' }} />
+                <span className="font-medium text-white text-sm md:text-base">Dashboard</span>
               </button>
               <button
                 onClick={() => setMostrarConfig(!mostrarConfig)}
                 className="p-2 hover:bg-white/10 rounded-lg transition-colors"
                 title="Configuración"
               >
-                <Settings size={24} style={{ color: '#ffffff' }} />
+                <Settings size={20} className="md:w-6 md:h-6" style={{ color: '#ffffff' }} />
               </button>
             </div>
           </div>
@@ -701,25 +706,25 @@ function FacturacionAutomatica() {
         ) : (
           <>
             {/* Card 2: Estadísticas y Controles */}
-            <div className="rounded-2xl shadow-xl p-6" style={{ backgroundColor: '#000052' }}>
+            <div className="rounded-2xl shadow-xl p-4 md:p-6" style={{ backgroundColor: '#000052' }}>
               <div className="space-y-6">
                 {/* Estadísticas Rápidas */}
-                <div className="grid grid-cols-4 gap-4">
-                  <div className="bg-white/10 backdrop-blur-sm p-4 rounded-lg border-l-4 border-white/30">
-                    <div className="text-2xl font-bold text-white">{estadisticas.total}</div>
-                    <div className="text-sm text-white/70">Total cargados</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                  <div className="bg-white/10 backdrop-blur-sm p-3 md:p-4 rounded-lg border-l-4 border-white/30">
+                    <div className="text-xl md:text-2xl font-bold text-white">{estadisticas.total}</div>
+                    <div className="text-[10px] md:text-sm text-white/70">Total</div>
                   </div>
-                  <div className="bg-green-500/20 backdrop-blur-sm p-4 rounded-lg border-l-4 border-[#00ff00]">
-                    <div className="text-2xl font-bold text-[#00ff00]">{estadisticas.completados}</div>
-                    <div className="text-sm text-white/70">Completados</div>
+                  <div className="bg-green-500/20 backdrop-blur-sm p-3 md:p-4 rounded-lg border-l-4 border-[#00ff00]">
+                    <div className="text-xl md:text-2xl font-bold text-[#00ff00]">{estadisticas.completados}</div>
+                    <div className="text-[10px] md:text-sm text-white/70">Listos</div>
                   </div>
-                  <div className="bg-orange-500/20 backdrop-blur-sm p-4 rounded-lg border-l-4 border-[#ff6400]">
-                    <div className="text-2xl font-bold text-[#ff6400]">{estadisticas.pendientes}</div>
-                    <div className="text-sm text-white/70">Pendientes</div>
+                  <div className="bg-orange-500/20 backdrop-blur-sm p-3 md:p-4 rounded-lg border-l-4 border-[#ff6400]">
+                    <div className="text-xl md:text-2xl font-bold text-[#ff6400]">{estadisticas.pendientes}</div>
+                    <div className="text-[10px] md:text-sm text-white/70">Pendientes</div>
                   </div>
-                  <div className="bg-red-500/20 backdrop-blur-sm p-4 rounded-lg border-l-4 border-red-500">
-                    <div className="text-2xl font-bold text-red-500">{estadisticas.fallidos}</div>
-                    <div className="text-sm text-white/70">Fallidos</div>
+                  <div className="bg-red-500/20 backdrop-blur-sm p-3 md:p-4 rounded-lg border-l-4 border-red-500">
+                    <div className="text-xl md:text-2xl font-bold text-red-500">{estadisticas.fallidos}</div>
+                    <div className="text-[10px] md:text-sm text-white/70">Error</div>
                   </div>
                 </div>
 
@@ -769,11 +774,11 @@ function FacturacionAutomatica() {
                 )}
 
                 {/* Zona de Carga y Acción */}
-                <div className="flex gap-4">
+                <div className="flex flex-col md:flex-row gap-4">
                   <label className="flex-1 cursor-pointer group">
-                    <div className="border-2 border-dashed border-white/30 rounded-lg p-8 text-center group-hover:bg-white/5 group-hover:border-[#ff6400] transition-all">
-                      <Upload className="mx-auto mb-2 text-white/50 group-hover:text-[#ff6400]" size={32} />
-                      <span className="text-white/70 group-hover:text-white">Subir tickets (PDF, JPG, PNG)</span>
+                    <div className="border-2 border-dashed border-white/30 rounded-lg p-4 md:p-8 text-center group-hover:bg-white/5 group-hover:border-[#ff6400] transition-all">
+                      <Upload className="mx-auto mb-2 text-white/50 group-hover:text-[#ff6400]" size={24} />
+                      <span className="text-white/70 group-hover:text-white text-sm md:text-base">Subir tickets</span>
                       <input
                         type="file"
                         multiple
@@ -787,7 +792,7 @@ function FacturacionAutomatica() {
                   <button
                     onClick={procesarTodos}
                     disabled={procesando || tickets.length === 0}
-                    className="px-8 py-4 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg active:scale-95 disabled:grayscale disabled:opacity-50"
+                    className="w-full md:w-auto px-8 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 disabled:grayscale disabled:opacity-50"
                     style={{
                       backgroundColor: procesando || tickets.length === 0 ? '#4b5563' : '#00ff00',
                       color: '#000052'
