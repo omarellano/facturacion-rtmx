@@ -34,8 +34,8 @@ async function facturarGasolina(ticket, config) {
 
         // Determinar URL base (esto vendría de una base de datos o config)
         let url = 'https://facturacion.pemex.com'; // Default
-        if (ticket.comercio === 4) url = 'https://facturacion.lagas.com.mx';
-        if (ticket.comercio === 3) url = 'https://facturacion.abimerhi.com';
+        if (ticket.comercio === 4) url = 'https://lagas.com.mx/facturacion/';
+        if (ticket.comercio === 3) url = 'https://www.abimerhigasolineras.com/facturacion/';
 
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 

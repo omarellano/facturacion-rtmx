@@ -422,11 +422,11 @@ function FacturacionAutomatica() {
     const inputLower = textoOArchivo.toLowerCase();
     const patterns = [
       { keywords: ['oxxo', 'cadena comercial oxxo'], rfc: 'CCO8605231N4', comercioId: 1, nombre: 'OXXO' },
-      { keywords: ['pemex', 'combustibles', 'gasolinera'], rfc: 'PME380607P14', comercioId: 2, nombre: 'Pemex' },
-      { keywords: ['abimerhi', 'estacionamiento', 'servicios abimerhi'], comercioId: 3, nombre: 'Abimerhi' },
-      { keywords: ['lagas', 'la gas', 'corporativo de servicios'], comercioId: 4, nombre: 'La Gas' },
-      { keywords: ['g500', 'gasolinera g500'], comercioId: 5, nombre: 'G500' },
-      { keywords: ['walmart', 'nueva wal mart', 'wal-mart'], rfc: 'NWM9709244W4', comercioId: 8, nombre: 'Walmart' },
+      { keywords: ['pemex', 'combustibles', 'gasolinera', 'e.s.'], rfc: 'PME380607P14', comercioId: 2, nombre: 'Pemex' },
+      { keywords: ['abimerhi', 'estacionamiento', 'servicios abimerhi', 'gasolinera abimerhi', 'f02379'], comercioId: 3, nombre: 'Abimerhi' },
+      { keywords: ['lagas', 'la gas', 'corporativo de servicios', 'servifacil'], comercioId: 4, nombre: 'La Gas' },
+      { keywords: ['g500', 'gasolinera g500', 'servicios g500'], comercioId: 5, nombre: 'G500' },
+      { keywords: ['walmart', 'nueva wal mart', 'wal-mart', 'bodega aurrera'], rfc: 'NWM9709244W4', comercioId: 8, nombre: 'Walmart' },
       { keywords: ['chedraui', 'tiendas chedraui'], rfc: 'TCH850701RM1', comercioId: 9, nombre: 'Chedraui' },
     ];
 
