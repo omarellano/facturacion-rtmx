@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Play, Pause, CheckCircle, XCircle, Clock, AlertCircle, Trash2, Plus, Settings, QrCode, Camera, BarChart2 } from 'lucide-react';
 import Tesseract from 'tesseract.js';
+import { Html5Qrcode } from "html5-qrcode";
 
 // Componente de Dashboard
 
@@ -459,23 +460,68 @@ function FacturacionAutomatica() {
     actualizarTicket({
       escaneoQRStatus: 'escaneando',
       deteccionComercioStatus: 'detectando',
-      mensaje: 'Iniciando lectura OCR...'
+      mensaje: 'Buscando QR y leyendo datos...'
     });
 
     try {
-      // Convertir archivo a DataURL para mayor compatibilidad en móviles
+      // 1. CARGAR IMAGEN EN CANVAS PARA PRE-PROCESAMIENTO
       const reader = new FileReader();
-      const dataUrl = await new Promise((resolve) => {
+      const originalDataUrl = await new Promise((resolve) => {
         reader.onload = (e) => resolve(e.target.result);
         reader.readAsDataURL(archivo);
       });
 
-      // Usar Tesseract para leer la imagen
-      const result = await Tesseract.recognize(dataUrl, 'spa', {
+      // 2. INTENTAR LEER QR (Estrategia más fiable)
+      const html5QrCode = new Html5Qrcode("qr-reader-hidden");
+      let qrDataFound = null;
+
+      try {
+        const qrResult = await html5QrCode.scanFile(archivo, false);
+        if (qrResult) {
+          console.log("QR Detectado:", qrResult);
+          try {
+            const url = new URL(qrResult);
+            const params = new URLSearchParams(url.search);
+            qrDataFound = {
+              url: qrResult,
+              uuid: params.get('id'),
+              rfcEmisor: params.get('re'),
+              rfcReceptor: params.get('rr'),
+              total: params.get('tt')
+            };
+          } catch (e) {
+            qrDataFound = { raw: qrResult };
+          }
+        }
+      } catch (qrError) {
+        console.log("No se encontró QR, intentando OCR...");
+      } finally {
+        await html5QrCode.clear();
+      }
+
+      // 3. PRE-PROCESAR IMAGEN PARA OCR (Mejorar contraste/nitidez)
+      const processedDataUrl = await new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+
+          // Filtros para mejorar la lectura de texto (Grayscale + Contraste)
+          ctx.filter = 'contrast(1.4) brightness(1.1) grayscale(1)';
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg', 0.9));
+        };
+        img.src = originalDataUrl;
+      });
+
+      // 4. OCR CON TESSERACT USANDO IMAGEN MEJORADA
+      const result = await Tesseract.recognize(processedDataUrl, 'spa', {
         workerBlobURL: false,
         logger: m => {
           if (m.status === 'recognizing text') {
-            actualizarTicket({ mensaje: `Leyendo: ${Math.floor(m.progress * 100)}%` });
+            actualizarTicket({ mensaje: `Analizando ticket: ${Math.floor(m.progress * 100)}%` });
           }
         }
       });
@@ -483,31 +529,41 @@ function FacturacionAutomatica() {
       const textoExtraido = result.data.text;
       const datosOcr = extraerDatosDeTexto(textoExtraido);
 
-      // Detección del comercio basada en el texto real
-      const comercioDetectado = detectarComercioPorImagen(textoExtraido, datosOcr);
+      // Combinar datos del QR (si existen) con el OCR
+      const datosFinales = {
+        ...datosOcr,
+        total: qrDataFound?.total || datosOcr.total,
+        folio: qrDataFound?.uuid ? qrDataFound.uuid.split('-')[0] : datosOcr.folio,
+        rfc: qrDataFound?.rfcEmisor || datosOcr.rfc
+      };
 
-      if (comercioDetectado.comercioId) {
+      // Detección del comercio
+      const comercioDetectado = detectarComercioPorImagen(textoExtraido, datosFinales);
+
+      if (comercioDetectado.comercioId || qrDataFound) {
         actualizarTicket({
           comercio: comercioDetectado.comercioId,
           comercioDetectado: comercioDetectado.comercioId,
-          confianzaDeteccion: comercioDetectado.confianza,
-          qrDetectado: false,
-          datos: { ...datosOcr, rawText: textoExtraido },
+          confianzaDeteccion: comercioDetectado.confianza || 100,
+          qrDetectado: !!qrDataFound,
+          qrData: qrDataFound,
+          datos: { ...datosFinales, rawText: textoExtraido },
           deteccionComercioStatus: 'detectado',
-          mensaje: `✓ ${comercioDetectado.nombre} • $${datosOcr.total || '?'}`
+          mensaje: `✓ ${comercioDetectado.nombre || 'Detectado'} • $${datosFinales.total || '?'}`
         });
       } else {
         actualizarTicket({
           deteccionComercioStatus: 'manual',
-          datos: { ...datosOcr, rawText: textoExtraido },
-          mensaje: datosOcr.total ? `Total: $${datosOcr.total}` : 'Lectura OK. Elija comercio.'
+          datos: { ...datosFinales, rawText: textoExtraido },
+          mensaje: datosFinales.total ? `Total: $${datosFinales.total}` : 'Datos listos para verificar.'
         });
       }
 
     } catch (error) {
-      console.error("Error en OCR:", error);
+      console.error("Error en procesamiento:", error);
+      // fallback final si todo falla pero la imagen cargó
       actualizarTicket({
-        mensaje: 'Error OCR. Intente de nuevo.',
+        mensaje: 'Lectura con dificultades. Revise campos.',
         deteccionComercioStatus: 'manual'
       });
     }
@@ -1198,7 +1254,9 @@ function FacturacionAutomatica() {
           </>
         )}
       </div>
-    </div >
+      {/* Lector QR oculto para procesamiento de archivos */}
+      <div id="qr-reader-hidden" style={{ display: 'none' }}></div>
+    </div>
   );
 }
 
