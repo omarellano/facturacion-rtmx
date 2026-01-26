@@ -262,6 +262,7 @@ function FacturacionAutomatica() {
   const [ticketActual, setTicketActual] = useState(null);
   const [mostrarConfig, setMostrarConfig] = useState(false);
   const [escaneoQR, setEscaneoQR] = useState(false);
+  const [evidenciaModal, setEvidenciaModal] = useState(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -564,6 +565,7 @@ function FacturacionAutomatica() {
         actualizarTicket({
           estado: 'completado',
           mensaje: `✓ ${resultado.message || 'Facturado con éxito'}`,
+          evidencia: resultado.evidencia,
           datos: { ...ticket.datos, ...resultado.datos, folio: resultado.datos?.folio || 'Ver PDF' }
         });
         return true;
@@ -663,6 +665,41 @@ function FacturacionAutomatica() {
             <p className="text-center text-sm text-gray-600 mt-4">
               Coloca el código QR dentro del marco
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Evidencia (Screenshot del Robot) */}
+      {evidenciaModal && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center z-[100] p-4 lg:p-20">
+          <div className="relative bg-white rounded-3xl overflow-hidden max-w-5xl w-full max-h-full flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-6 border-b bg-gray-50">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Evidencia del Proceso</h3>
+                <p className="text-sm text-gray-500">Captura de pantalla real generada por el robot en el portal oficial.</p>
+              </div>
+              <button
+                onClick={() => setEvidenciaModal(null)}
+                className="w-12 h-12 flex items-center justify-center bg-white rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 shadow-sm transition-all text-2xl"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4 bg-gray-200 flex items-center justify-center">
+              <img
+                src={evidenciaModal}
+                alt="Evidencia del Robot"
+                className="max-w-full shadow-2xl rounded-lg"
+              />
+            </div>
+            <div className="p-6 bg-gray-50 border-t text-center">
+              <button
+                onClick={() => setEvidenciaModal(null)}
+                className="px-10 py-3 bg-gray-900 text-white font-bold rounded-xl hover:bg-gray-800 transition-all"
+              >
+                Entendido
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -911,6 +948,16 @@ function FacturacionAutomatica() {
                               {ticket.estado === 'fallido' && <XCircle size={14} />}
                               {ticket.mensaje}
                             </div>
+                          )}
+
+                          {ticket.evidencia && (
+                            <button
+                              onClick={() => setEvidenciaModal(ticket.evidencia)}
+                              className="mt-2 text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 transition-all active:scale-95"
+                            >
+                              <Camera size={14} />
+                              Ver Evidencia del Robot
+                            </button>
                           )}
                         </div>
 
