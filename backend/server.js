@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const ngrok = require('@ngrok/ngrok');
 const { facturarOXXO } = require('./robots/oxxo');
 const { facturarGasolina } = require('./robots/gasolina');
 
@@ -25,7 +26,7 @@ const robots = {
 app.get('/status', (req, res) => {
     res.json({
         status: 'Robot Online',
-        version: '1.1.0',
+        version: '1.2.0 (ngrok)',
         robots_disponibles: Object.keys(robots).length
     });
 });
@@ -60,10 +61,24 @@ app.post('/facturar', async (req, res) => {
     }
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`=========================================`);
     console.log(`Servidor de automatización CORRIENDO`);
     console.log(`Puerto: ${PORT}`);
-    console.log(`Estado: Online`);
-    console.log(`=========================================`);
+
+    try {
+        // Para usar ngrok necesitas un authtoken de ngrok.com (es gratis)
+        // Puedes ponerlo en el archivo .env como NGROK_AUTHTOKEN
+        const session = await ngrok.forward({
+            addr: PORT,
+            authtoken: process.env.NGROK_AUTHTOKEN
+        });
+        console.log(`Acceso Remoto ACTIVO`);
+        console.log(`URL Pública: ${session.url()}`);
+        console.log(`=========================================`);
+    } catch (err) {
+        console.error("No se pudo iniciar ngrok:", err.message);
+        console.log(`Estado: Solo Local (Puerto ${PORT})`);
+        console.log(`=========================================`);
+    }
 });
