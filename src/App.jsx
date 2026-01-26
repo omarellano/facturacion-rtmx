@@ -122,7 +122,7 @@ const DashboardEstadisticas = ({ tickets, comercios }) => {
 // Componente Principal
 function FacturacionAutomatica() {
   // Logo en base64
-  const logoRotulate = "/logo_rotulate.png";
+  const logoRotulate = "logo_rotulate.png";
 
   const [vista, setVista] = useState('facturacion');
   const [tickets, setTickets] = useState([]);
