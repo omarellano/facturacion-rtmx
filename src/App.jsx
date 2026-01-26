@@ -987,16 +987,16 @@ function FacturacionAutomatica() {
                       className={`group border-2 rounded-xl p-3 sm:p-5 transition-all duration-300 ${ticketActual === ticket.id ? 'border-orange-500 bg-orange-50 shadow-md ring-4 ring-orange-500/10' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
                         }`}
                     >
-                      <div className="flex items-start gap-3 sm:gap-5">
-                        <div className="shrink-0 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
+                      <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-5">
+                        <div className="shrink-0 p-2 sm:p-3 bg-white rounded-lg shadow-sm border border-gray-50 flex items-center justify-center">
                           {getEstadoIcon(ticket.estado)}
                         </div>
 
-                        <div className="flex-1 min-w-0">
+                        <div className="flex-1 w-full min-w-0">
                           <div className="flex items-center justify-between gap-2 mb-1">
                             <h3 className="font-bold text-gray-900 text-sm truncate">{ticket.nombre}</h3>
                             {ticket.datos?.total && (
-                              <span className="shrink-0 font-black text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded text-[11px]">
+                              <span className="shrink-0 font-black text-white bg-gray-900 px-1.5 py-0.5 rounded text-[11px]">
                                 ${ticket.datos.total}
                               </span>
                             )}
@@ -1006,29 +1006,26 @@ function FacturacionAutomatica() {
                               Cuenta Activa
                             </span>
                           )}
-                        </div>
 
-                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-500 mt-2">
-                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 w-full">
-                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Comercio:</span>
-                            <select
-                              value={ticket.comercio || ''}
-                              onChange={(e) => {
-                                const val = e.target.value ? parseInt(e.target.value) : null;
-                                setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, comercio: val, deteccionComercioStatus: val ? 'manual' : 'manual' } : t));
-                              }}
-                              className={`w-full sm:w-auto px-2 py-1.5 rounded-lg border text-xs font-bold focus:ring-2 focus:ring-orange-500 outline-none transition-all ${!ticket.comercio ? 'border-red-300 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-gray-700'}`}
-                            >
-                              <option value="">-- Seleccionar --</option>
-                              {comercios.map(c => (
-                                <option key={c.id} value={c.id}>{c.nombre}</option>
-                              ))}
-                            </select>
-                          </div>
+                          <div className="mt-4 space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Comercio:</span>
+                              <select
+                                value={ticket.comercio || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value ? parseInt(e.target.value) : null;
+                                  setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, comercio: val, deteccionComercioStatus: val ? 'manual' : 'manual' } : t));
+                                }}
+                                className={`w-full sm:w-auto px-4 py-2 rounded-xl border text-sm font-bold focus:ring-2 focus:ring-orange-500 outline-none transition-all ${!ticket.comercio ? 'border-red-300 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-gray-700'}`}
+                              >
+                                <option value="">-- Seleccionar Comercio --</option>
+                                {comercios.map(c => (
+                                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                                ))}
+                              </select>
+                            </div>
 
-                          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-                            {/* Grid de Datos Editables (Optimizado para Móvil) */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mt-6 p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 p-4 bg-gray-50/80 rounded-2xl border border-gray-100 w-full">
                               <div className="flex flex-col gap-1.5">
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Monto ($)</label>
                                 <input
