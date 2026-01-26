@@ -479,22 +479,43 @@ function FacturacionAutomatica() {
         const qrResult = await html5QrCode.scanFile(archivo, false);
         if (qrResult) {
           console.log("QR Detectado:", qrResult);
-          try {
-            const url = new URL(qrResult);
-            const params = new URLSearchParams(url.search);
-            qrDataFound = {
-              url: qrResult,
-              uuid: params.get('id'),
-              rfcEmisor: params.get('re'),
-              rfcReceptor: params.get('rr'),
-              total: params.get('tt')
-            };
-          } catch (e) {
-            qrDataFound = { raw: qrResult };
+
+          // Intentar parsear como URL del SAT (CFDI)
+          if (qrResult.includes('verificacfdi') || qrResult.includes('sat.gob.mx')) {
+            try {
+              const url = new URL(qrResult);
+              const params = new URLSearchParams(url.search);
+              qrDataFound = {
+                tipo: 'SAT',
+                url: qrResult,
+                uuid: params.get('id'),
+                rfcEmisor: params.get('re'),
+                rfcReceptor: params.get('rr'),
+                total: params.get('tt')
+              };
+            } catch (e) { }
           }
+
+          // Si no es URL del SAT, extraer datos de gasolinera
+          if (!qrDataFound) {
+            // Los QR de gasolineras suelen contener el WebID directamente
+            // Formato común: números de 8-15 dígitos o alfanuméricos
+            const webidMatch = qrResult.match(/([A-Z0-9]{8,20})/i);
+            const estacionMatch = qrResult.match(/(E\d{4,6}|\d{5})/i);
+
+            qrDataFound = {
+              tipo: 'GASOLINERA',
+              raw: qrResult,
+              webid: webidMatch ? webidMatch[1] : qrResult.replace(/\s/g, ''),
+              estacion: estacionMatch ? estacionMatch[1] : null
+            };
+            console.log("QR de gasolinera parseado:", qrDataFound);
+          }
+
+          actualizarTicket({ mensaje: '✓ QR detectado! Extrayendo datos...' });
         }
       } catch (qrError) {
-        console.log("No se encontró QR, intentando OCR...");
+        console.log("No se encontró QR legible, usando OCR...", qrError.message);
       } finally {
         await html5QrCode.clear();
       }
@@ -529,11 +550,13 @@ function FacturacionAutomatica() {
       const textoExtraido = result.data.text;
       const datosOcr = extraerDatosDeTexto(textoExtraido);
 
-      // Combinar datos del QR (si existen) con el OCR
+      // Combinar datos del QR (si existen) con el OCR - Priorizar QR
       const datosFinales = {
         ...datosOcr,
         total: qrDataFound?.total || datosOcr.total,
         folio: qrDataFound?.uuid ? qrDataFound.uuid.split('-')[0] : datosOcr.folio,
+        webid: qrDataFound?.webid || datosOcr.webid,
+        estacion: qrDataFound?.estacion || datosOcr.estacion,
         rfc: qrDataFound?.rfcEmisor || datosOcr.rfc
       };
 
