@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Upload, Play, Pause, CheckCircle, XCircle, Clock, AlertCircle, Trash2, Plus, Settings, QrCode, Camera, BarChart2 } from 'lucide-react';
+import Tesseract from 'tesseract.js';
 
 // Componente de Dashboard
 
@@ -324,158 +325,118 @@ function FacturacionAutomatica() {
     setTickets(prev => [...prev, nuevoTicket]);
   };
 
-  const detectarQRYComercio = async (archivo, ticketId) => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
+  const extraerDatosDeTexto = (texto) => {
+    const lines = texto.split('\n');
+    const datos = {
+      rfc: null,
+      total: null,
+      fecha: null,
+      folio: null
+    };
 
-      reader.onload = async (e) => {
-        const img = new Image();
-        img.src = e.target.result;
+    // Buscar RFC (Patrón simple para México)
+    const rfcRegex = /[A-Z&Ñ]{3,4}[0-9]{2}(0[1-9]|1[012])(0[1-9]|[12][0-9]|3[01])[A-Z0-9]{2}[0-9A]/i;
+    const rfcMatch = texto.match(rfcRegex);
+    if (rfcMatch) datos.rfc = rfcMatch[0].toUpperCase();
 
-        img.onload = async () => {
-          // Actualizar estado a "escaneando"
-          setTickets(prev => prev.map(t =>
-            t.id === ticketId ? {
-              ...t,
-              escaneoQRStatus: 'escaneando',
-              deteccionComercioStatus: 'detectando'
-            } : t
-          ));
+    // Buscar Total (Busca "TOTAL" y luego un número)
+    const totalRegex = /TOTAL[:\s]*\$?\s*([0-9]{1,5}\.[0-9]{2})/i;
+    const totalMatch = texto.match(totalRegex);
+    if (totalMatch) datos.total = totalMatch[1];
 
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          ctx.drawImage(img, 0, 0);
+    // Buscar Fecha (DD/MM/YYYY o similar)
+    const fechaRegex = /(\d{2}[\/-]\d{2}[\/-]\d{2,4})/;
+    const fechaMatch = texto.match(fechaRegex);
+    if (fechaMatch) datos.fecha = fechaMatch[1];
 
-          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-          // Simular detección de QR y análisis de imagen
-          await new Promise(resolve => setTimeout(resolve, 2000));
-
-          // Simular detección de QR (70% de tickets tienen QR)
-          const tieneQR = Math.random() > 0.3;
-          let qrData = null;
-
-          if (tieneQR) {
-            qrData = {
-              url: 'https://verificacfdi.facturaelectronica.sat.gob.mx/?id=ABC123DEF456',
-              rfc: 'XAXX010101000',
-              total: (Math.random() * 1000 + 100).toFixed(2),
-              uuid: `${Math.random().toString(36).substr(2, 8)}-${Math.random().toString(36).substr(2, 4)}`,
-              fecha: new Date().toISOString().split('T')[0],
-              yaFacturado: Math.random() < 0.1 // 10% de probabilidad de que el QR diga que ya está facturado
-            };
-          }
-
-          // Simular detección del comercio mediante análisis de imagen y texto
-          const comercioDetectado = detectarComercioPorImagen(archivo.name, qrData);
-
-          if (comercioDetectado.comercioId && comercioDetectado.confianza >= 80) {
-            // Alta confianza - asignar automáticamente
-            const comercioSeleccionado = comercios.find(c => c.id === comercioDetectado.comercioId);
-            setTickets(prev => prev.map(t =>
-              t.id === ticketId ? {
-                ...t,
-                comercio: comercioDetectado.comercioId,
-                comercioDetectado: comercioDetectado.comercioId,
-                confianzaDeteccion: comercioDetectado.confianza,
-                usarCredenciales: comercioSeleccionado?.tipoAuth === 'siempre',
-                qrDetectado: tieneQR,
-                qrData: qrData,
-                yaFacturado: qrData?.yaFacturado || false,
-                escaneoQRStatus: tieneQR ? 'encontrado' : 'no_encontrado',
-                deteccionComercioStatus: 'detectado',
-                mensaje: qrData?.yaFacturado
-                  ? `⚠️ Ticket ya facturado - Verificado por QR`
-                  : tieneQR
-                    ? `✓ ${comercioDetectado.nombre} detectado (${comercioDetectado.confianza}%) • QR encontrado`
-                    : `✓ ${comercioDetectado.nombre} detectado (${comercioDetectado.confianza}%)`
-              } : t
-            ));
-          } else if (comercioDetectado.comercioId && comercioDetectado.confianza >= 50) {
-            // Confianza media - sugerir pero dejar que usuario confirme
-            setTickets(prev => prev.map(t =>
-              t.id === ticketId ? {
-                ...t,
-                comercioDetectado: comercioDetectado.comercioId,
-                confianzaDeteccion: comercioDetectado.confianza,
-                qrDetectado: tieneQR,
-                qrData: qrData,
-                escaneoQRStatus: tieneQR ? 'encontrado' : 'no_encontrado',
-                deteccionComercioStatus: 'manual',
-                mensaje: tieneQR
-                  ? `QR encontrado • Posible: ${comercioDetectado.nombre} (${comercioDetectado.confianza}%)`
-                  : `Posible: ${comercioDetectado.nombre} (${comercioDetectado.confianza}%) - Confirmar`
-              } : t
-            ));
-          } else {
-            // Baja confianza - modo manual
-            setTickets(prev => prev.map(t =>
-              t.id === ticketId ? {
-                ...t,
-                qrDetectado: tieneQR,
-                qrData: qrData,
-                escaneoQRStatus: tieneQR ? 'encontrado' : 'no_encontrado',
-                deteccionComercioStatus: 'manual',
-                mensaje: tieneQR ? 'QR encontrado • Seleccionar comercio' : 'Seleccionar comercio manualmente'
-              } : t
-            ));
-          }
-
-          resolve(tieneQR);
-        };
-      };
-
-      reader.readAsDataURL(archivo);
-    });
+    return datos;
   };
 
-  const detectarComercioPorImagen = (nombreArchivo, qrData) => {
-    // Simula OCR y análisis de imagen para detectar el comercio
-    // En producción usarías Tesseract.js + análisis de logos
+  const detectarQRYComercio = async (archivo, ticketId) => {
+    const actualizarTicket = (cambios) => {
+      setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, ...cambios } : t));
+    };
 
-    const nombreLower = nombreArchivo.toLowerCase();
+    actualizarTicket({
+      escaneoQRStatus: 'escaneando',
+      deteccionComercioStatus: 'detectando',
+      mensaje: 'Iniciando lectura OCR...'
+    });
+
+    try {
+      // Usar Tesseract para leer la imagen
+      const result = await Tesseract.recognize(archivo, 'spa', {
+        logger: m => {
+          if (m.status === 'recognizing text') {
+            actualizarTicket({ mensaje: `Leyendo texto: ${Math.floor(m.progress * 100)}%` });
+          }
+        }
+      });
+
+      const textoExtraido = result.data.text;
+      const datosOcr = extraerDatosDeTexto(textoExtraido);
+
+      // Detección del comercio basada en el texto real
+      const comercioDetectado = detectarComercioPorImagen(textoExtraido, null);
+
+      if (comercioDetectado.comercioId) {
+        const comercioSeleccionado = comercios.find(c => c.id === comercioDetectado.comercioId);
+        actualizarTicket({
+          comercio: comercioDetectado.comercioId,
+          comercioDetectado: comercioDetectado.comercioId,
+          confianzaDeteccion: comercioDetectado.confianza,
+          qrDetectado: false, // Por ahora solo OCR plano
+          datos: { ...datosOcr, rawText: textoExtraido },
+          deteccionComercioStatus: 'detectado',
+          mensaje: `✓ ${comercioDetectado.nombre} detectado • Datos extraídos: $${datosOcr.total || '?'}`
+        });
+      } else {
+        actualizarTicket({
+          deteccionComercioStatus: 'manual',
+          datos: { ...datosOcr, rawText: textoExtraido },
+          mensaje: datosOcr.total ? `OCR: Total detectado $${datosOcr.total}` : 'Lectura completada. Seleccione comercio.'
+        });
+      }
+
+    } catch (error) {
+      console.error("Error en OCR:", error);
+      actualizarTicket({
+        mensaje: 'Error al leer el ticket',
+        deteccionComercioStatus: 'manual'
+      });
+    }
+  };
+
+  const detectarComercioPorImagen = (textoOArchivo, qrData) => {
+    const inputLower = textoOArchivo.toLowerCase();
     const patterns = [
-      { keywords: ['oxxo'], comercioId: 1, nombre: 'OXXO' },
-      { keywords: ['pemex'], comercioId: 2, nombre: 'Pemex' },
+      { keywords: ['oxxo', 'cadena comercial oxxo'], comercioId: 1, nombre: 'OXXO' },
+      { keywords: ['pemex', 'petroleos mexicanos'], comercioId: 2, nombre: 'Pemex' },
       { keywords: ['abimerhi'], comercioId: 3, nombre: 'Abimerhi' },
       { keywords: ['lagas', 'la gas'], comercioId: 4, nombre: 'La Gas' },
       { keywords: ['g500'], comercioId: 5, nombre: 'G500' },
       { keywords: ['facturasgas'], comercioId: 6, nombre: 'FacturasGas' },
       { keywords: ['bonpane'], comercioId: 7, nombre: 'Bonpane' },
-      { keywords: ['walmart'], comercioId: 8, nombre: 'Walmart' },
+      { keywords: ['walmart', 'nueva wal mart'], comercioId: 8, nombre: 'Walmart' },
       { keywords: ['chedraui'], comercioId: 9, nombre: 'Chedraui' },
       { keywords: ['soriana'], comercioId: 10, nombre: 'Soriana' },
       { keywords: ['costco'], comercioId: 11, nombre: 'Costco' },
-      { keywords: ['sams', 'sam'], comercioId: 12, nombre: "Sam's Club" },
+      { keywords: ['sams', 'sam\'s club'], comercioId: 12, nombre: "Sam's Club" },
       { keywords: ['home depot', 'homedepot'], comercioId: 13, nombre: 'Home Depot' },
       { keywords: ['autozone'], comercioId: 14, nombre: 'AutoZone' },
     ];
 
-    // Buscar en nombre de archivo
+    // Buscar en el texto
     for (const pattern of patterns) {
       for (const keyword of pattern.keywords) {
-        if (nombreLower.includes(keyword)) {
+        if (inputLower.includes(keyword)) {
           return {
             comercioId: pattern.comercioId,
             nombre: pattern.nombre,
-            confianza: 85 + Math.floor(Math.random() * 10)
+            confianza: 95
           };
         }
       }
-    }
-
-    // Simular análisis de texto OCR del ticket (aleatorio para demo)
-    const random = Math.random();
-    if (random > 0.4) {
-      const randomPattern = patterns[Math.floor(Math.random() * patterns.length)];
-      const confianza = 50 + Math.floor(Math.random() * 40); // 50-90%
-      return {
-        comercioId: randomPattern.comercioId,
-        nombre: randomPattern.nombre,
-        confianza: confianza
-      };
     }
 
     return {
