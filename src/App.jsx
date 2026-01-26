@@ -378,10 +378,10 @@ function FacturacionAutomatica() {
     try {
       // Usar Tesseract para leer la imagen
       const result = await Tesseract.recognize(archivo, 'spa', {
-        workerBlobURL: false, // Evita problemas en algunos entornos
+        workerBlobURL: false,
         logger: m => {
           if (m.status === 'recognizing text') {
-            actualizarTicket({ mensaje: `Leyendo texto: ${Math.floor(m.progress * 100)}%` });
+            actualizarTicket({ mensaje: `Leyendo: ${Math.floor(m.progress * 100)}%` });
           }
         }
       });
@@ -899,17 +899,17 @@ function FacturacionAutomatica() {
                           </div>
 
                           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-500 mt-2">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Comercio:</span>
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 w-full">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Comercio:</span>
                               <select
                                 value={ticket.comercio || ''}
                                 onChange={(e) => {
                                   const val = e.target.value ? parseInt(e.target.value) : null;
                                   setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, comercio: val, deteccionComercioStatus: val ? 'manual' : 'manual' } : t));
                                 }}
-                                className={`px-3 py-1.5 rounded-lg border text-sm font-medium focus:ring-2 focus:ring-orange-500 outline-none transition-all ${!ticket.comercio ? 'border-red-300 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-gray-700'}`}
+                                className={`w-full sm:w-auto px-2 py-1.5 rounded-lg border text-xs font-bold focus:ring-2 focus:ring-orange-500 outline-none transition-all ${!ticket.comercio ? 'border-red-300 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-gray-700'}`}
                               >
-                                <option value="">-- Seleccionar Comercio --</option>
+                                <option value="">-- Seleccionar --</option>
                                 {comercios.map(c => (
                                   <option key={c.id} value={c.id}>{c.nombre}</option>
                                 ))}
@@ -939,14 +939,16 @@ function FacturacionAutomatica() {
                           </div>
 
                           {ticket.mensaje && (
-                            <div className={`mt-3 text-sm font-medium flex items-center gap-1.5 p-2 rounded-lg ${ticket.estado === 'completado' ? 'text-green-700 bg-green-50 border border-green-100' :
+                            <div className={`mt-3 text-[11px] md:text-sm font-bold flex items-center gap-1.5 p-2 rounded-lg break-words overflow-hidden ${ticket.estado === 'completado' ? 'text-green-700 bg-green-50 border border-green-100' :
                               ticket.estado === 'fallido' ? 'text-red-700 bg-red-50 border border-red-100' :
                                 'text-blue-700 bg-blue-50 border border-blue-100'
                               }`}>
-                              {ticket.estado === 'procesando' && <Clock size={14} className="animate-spin" />}
-                              {ticket.estado === 'completado' && <CheckCircle size={14} />}
-                              {ticket.estado === 'fallido' && <XCircle size={14} />}
-                              {ticket.mensaje}
+                              <span className="shrink-0">
+                                {ticket.estado === 'procesando' && <Clock size={14} className="animate-spin" />}
+                                {ticket.estado === 'completado' && <CheckCircle size={14} />}
+                                {ticket.estado === 'fallido' && <XCircle size={14} />}
+                              </span>
+                              <span className="truncate md:whitespace-normal">{ticket.mensaje}</span>
                             </div>
                           )}
 
