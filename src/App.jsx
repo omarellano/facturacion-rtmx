@@ -502,7 +502,11 @@ function FacturacionAutomatica() {
   };
 
   const enviarAlRobot = async (ticket) => {
-    const backendUrl = 'https://angelina-unrecuperated-lorilee.ngrok-free.dev/facturar';
+    // Si estamos en localhost usar puerto directo, si no usar tunel ngrok
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const backendUrl = isLocal
+      ? 'http://localhost:3001/facturar'
+      : 'https://angelina-unrecuperated-lorilee.ngrok-free.dev/facturar';
 
     try {
       const response = await fetch(backendUrl, {
