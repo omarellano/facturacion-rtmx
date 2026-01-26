@@ -263,6 +263,7 @@ function FacturacionAutomatica() {
   const [mostrarConfig, setMostrarConfig] = useState(false);
   const [escaneoQR, setEscaneoQR] = useState(false);
   const [evidenciaModal, setEvidenciaModal] = useState(null);
+  const [serverStatus, setServerStatus] = useState('checking'); // checking, online, offline
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -299,6 +300,29 @@ function FacturacionAutomatica() {
   useEffect(() => {
     localStorage.setItem('datosFacturacion', JSON.stringify(datosFacturacion));
   }, [datosFacturacion]);
+
+  // Verificar conexión con el robot al cargar
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const baseUrl = isLocal
+          ? 'http://localhost:3001'
+          : 'https://angelina-unrecuperated-lorilee.ngrok-free.dev';
+
+        const response = await fetch(`${baseUrl}/status`, {
+          headers: { 'ngrok-skip-browser-warning': 'true' }
+        });
+        if (response.ok) setServerStatus('online');
+        else setServerStatus('offline');
+      } catch (e) {
+        setServerStatus('offline');
+      }
+    };
+    checkStatus();
+    const interval = setInterval(checkStatus, 30000); // Re-check cada 30 segundos
+    return () => clearInterval(interval);
+  }, []);
 
   const agregarTicket = (archivo) => {
     const nuevoTicket = {
@@ -629,7 +653,7 @@ function FacturacionAutomatica() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-6" style={{ backgroundColor: '#f5f5f5' }}>
+    <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-6 overflow-x-hidden selection:bg-orange-200" style={{ backgroundColor: '#f5f5f5' }}>
       {/* Modal de escaneo QR manual */}
       {escaneoQR && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -715,10 +739,14 @@ function FacturacionAutomatica() {
                 className="h-12 md:h-14 object-contain"
               />
               <div className="space-y-1">
-                <h1 className="text-xl md:text-2xl font-bold text-white leading-tight">
-                  Sistema de Facturación Automática
-                </h1>
-                <p className="text-white/60 text-sm">Tickets de consumo • Robot México</p>
+                <div className="flex items-center gap-2 justify-center md:justify-start">
+                  <h1 className="text-xl md:text-2xl font-bold text-white leading-tight">
+                    Sistema de Facturación
+                  </h1>
+                  <div className={`w-3 h-3 rounded-full shrink-0 ${serverStatus === 'online' ? 'bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.5)]' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-gray-400'} animate-pulse`}
+                    title={serverStatus === 'online' ? 'Robot Online' : 'Robot Offline'}></div>
+                </div>
+                <p className="text-white/60 text-xs md:text-sm">Robot México • {serverStatus === 'online' ? 'Conexión Activa' : 'Sin conexión'}</p>
               </div>
             </div>
             <div className="flex items-center justify-center gap-3 w-full md:w-auto">

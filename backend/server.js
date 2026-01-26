@@ -8,8 +8,15 @@ const { facturarGasolina } = require('./robots/gasolina');
 dotenv.config();
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+// Configuración de CORS robusta
+app.use(cors({
+    origin: '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'ngrok-skip-browser-warning']
+}));
+
+app.use(express.json({ limit: '50mb' })); // Aumentar límite para imágenes/evidencia
 
 const PORT = process.env.PORT || 3001;
 
