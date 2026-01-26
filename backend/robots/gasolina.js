@@ -9,16 +9,34 @@ async function facturarGasolina(ticket, config) {
 
     // 1. Validar la fecha (Solo facturable en el mes corriente)
     if (fecha) {
-        const [dia, mes, anio] = fecha.split(/[\/-]/);
-        const fechaTicket = new Date(anio.length === 2 ? `20${anio}` : anio, mes - 1, dia);
-        const hoy = new Date();
+        let fechaTicket;
 
-        if (fechaTicket.getMonth() !== hoy.getMonth() || fechaTicket.getFullYear() !== hoy.getFullYear()) {
-            return {
-                success: false,
-                message: `TICKET VENCIDO: La fecha del ticket (${fecha}) no corresponde al mes actual. Los portales de gasolina no permiten facturar meses anteriores.`,
-                codigo_error: 'FECHA_INVALIDA'
-            };
+        if (fecha.includes('-') && fecha.split('-')[0].length === 4) {
+            // Formato YYYY-MM-DD
+            const [anio, mes, dia] = fecha.split('-');
+            fechaTicket = new Date(anio, mes - 1, dia);
+        } else {
+            // Formato DD/MM/YYYY o DD-MM-YYYY
+            const parts = fecha.split(/[\/-]/);
+            if (parts.length === 3) {
+                const [dia, mes, anio] = parts;
+                const fullAnio = anio.length === 2 ? `20${anio}` : anio;
+                fechaTicket = new Date(fullAnio, mes - 1, dia);
+            }
+        }
+
+        if (fechaTicket) {
+            const hoy = new Date();
+            const esMismoMes = fechaTicket.getMonth() === hoy.getMonth() &&
+                fechaTicket.getFullYear() === hoy.getFullYear();
+
+            if (!esMismoMes) {
+                return {
+                    success: false,
+                    message: `TICKET VENCIDO: La fecha del ticket (${fecha}) no corresponde al mes actual. Los portales de gasolina no permiten facturar meses anteriores.`,
+                    codigo_error: 'FECHA_INVALIDA'
+                };
+            }
         }
     }
 
