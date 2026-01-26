@@ -56,24 +56,43 @@ async function facturarGasolina(ticket, config) {
                     const el = await page.$('input[name*="webid"], #webid, .webid, input[name*="referencia"]');
                     if (el) await el.type(webid, { delay: 50 });
                 }
-                await new Promise(r => setTimeout(r, 1000));
+
+                // Intentar presionar el botón de Continuar/Facturar para validar
+                const nextButtons = await page.$$('button, input[type="button"], input[type="submit"]');
+                for (const btn of nextButtons) {
+                    const txt = await page.evaluate(e => e.innerText || e.value, btn);
+                    if (/siguiente|continuar|consultar|facturar|enviar/i.test(txt)) {
+                        await btn.click();
+                        console.log(`Botón presionado: ${txt}`);
+                        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 5000 }).catch(() => { });
+                        break;
+                    }
+                }
+
+                await new Promise(r => setTimeout(r, 2000));
             } catch (e) {
-                console.log("Error al intentar llenar campos automáticos");
+                console.log("Aviso: No se pudo avanzar automáticamente (" + e.message + ")");
             }
         }
 
-        // Tomar captura de pantalla de evidencia
+        // Tomar captura de pantalla de evidencia final
         const screenshotBuffer = await page.screenshot({ fullPage: false });
         const screenshotBase64 = screenshotBuffer.toString('base64');
 
+        // Escanear la página final buscando palabras de éxito
+        const bodyText = await page.evaluate(() => document.body.innerText);
+        const exito = /éxito|completo|generada|descargar|enviada|folio fiscal|terminar/i.test(bodyText);
+
         return {
             success: true,
-            message: 'Robot en Portal: Se han ingresado los datos disponibles. Revise la captura.',
+            message: exito
+                ? '✓ FACTURACIÓN COMPLETADA: Revise la evidencia para descargar.'
+                : 'Robot en Portal: Datos ingresados. Revise la captura para el siguiente paso.',
             evidencia: `data:image/png;base64,${screenshotBase64}`,
             datos: {
-                folio: ticket.datos?.folio || 'No detectado',
-                webid: ticket.datos?.webid || 'No detectado',
-                estacion: ticket.datos?.estacion || 'No detectado',
+                folio: ticket.datos?.folio || 'No cargado',
+                webid: ticket.datos?.webid || 'No cargado',
+                estacion: ticket.datos?.estacion || 'No cargado',
                 url_portal: url
             }
         };

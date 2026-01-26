@@ -369,8 +369,8 @@ function FacturacionAutomatica() {
       datos.rfcsEncontrados = matches.map(m => m.replace(/[\s-]/g, '').toUpperCase());
     }
 
-    // Buscar Total: Maneja "$", espacios, comas y variaciones de la palabra TOTAL
-    const totalRegex = /(?:TOTAL|IMPORTE TOTAL|PAGO|NETO).*?\$?\s*([\d,]+\.\d{2})/i;
+    // Buscar Total: Flexibilidad extrema con caracteres intermedios
+    const totalRegex = /(?:TOTAL|IMPORTE|PAGO|NETO|PAGAR)[\s\S]{0,20}?\$?\s*([\d,]+\.\d{2})/i;
     const totalMatch = texto.match(totalRegex);
     if (totalMatch) {
       datos.total = totalMatch[1].replace(/,/g, '');
@@ -381,18 +381,18 @@ function FacturacionAutomatica() {
     const fechaMatch = texto.match(fechaRegex);
     if (fechaMatch) datos.fecha = fechaMatch[1];
 
-    // Buscar Folio: Típico en tickets de gasolina o retail
-    const folioRegex = /(?:FOLIO|TICKET|TRANS|NOTA|VENTA|F:).*?(\d+[A-Z\d]*)/i;
+    // Buscar Folio: Acepta variaciones y símbolos entre prefijo y valor
+    const folioRegex = /(?:FOLIO|TICKET|TRANS|NOTA|VENTA|F:|\bF\b)[\s\S]{0,15}?(\d+[A-Z\d-]*)/i;
     const folioMatch = texto.match(folioRegex);
     if (folioMatch) datos.folio = folioMatch[1];
 
-    // Buscar WebID / Código de Facturación (Específico Abimerhi/G500/Pemex)
-    const webidRegex = /(?:WEBID|WEB ID|CLAVE|CODIGO FACT|FACTURACION|REF).*?([A-Z0-9-]{4,16})/i;
+    // Buscar WebID / Código de Facturación (Específico Abimerhi/G500/Pemex/LaGas)
+    const webidRegex = /(?:WEBID|WEB ID|CLAVE|CODIGO|FACTURACION|REF|REFERENCIA|ID)[\s\S]{0,15}?([A-Z0-9-]{4,20})/i;
     const webidMatch = texto.match(webidRegex);
     if (webidMatch) datos.webid = webidMatch[1];
 
     // Buscar Estación (E01234, PL/1234/EXP/ES/2015, etc)
-    const estacionRegex = /(?:ESTACION|E\.\s*S\.|ES|PERMISO|CRE).*?(E\d{4,6}|PL\/\d+\/EXP\/ES\/\d{4})/i;
+    const estacionRegex = /(?:ESTACION|E\.\s*S\.|ES|PERMISO|CRE|ES\.\d+)[\s\S]{0,15}?(E\d{4,6}|PL\/\d+\/EXP\/ES\/\d{4})/i;
     const estacionMatch = texto.match(estacionRegex);
     if (estacionMatch) datos.estacion = estacionMatch[1];
 
@@ -971,40 +971,49 @@ function FacturacionAutomatica() {
                             </select>
                           </div>
 
-                          {ticket.datos?.total && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Monto:</span>
-                              <span className="font-bold text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded text-xs">${ticket.datos.total}</span>
+                          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase leading-none">Monto</span>
+                              <input
+                                type="text"
+                                value={ticket.datos?.total || ''}
+                                onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, total: e.target.value } } : t))}
+                                className="w-full px-2 py-1.5 border border-gray-100 focus:border-orange-500 bg-gray-50 rounded-lg text-xs font-bold outline-none transition-all"
+                              />
                             </div>
-                          )}
 
-                          {ticket.datos?.fecha && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Fecha:</span>
-                              <span className="text-gray-700 text-xs">{ticket.datos.fecha}</span>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase leading-none">WebID / Ref</span>
+                              <input
+                                type="text"
+                                value={ticket.datos?.webid || ''}
+                                placeholder="Código"
+                                onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, webid: e.target.value } } : t))}
+                                className="w-full px-2 py-1.5 border border-gray-100 focus:border-orange-500 bg-orange-50/50 rounded-lg text-xs font-mono font-bold text-orange-700 outline-none transition-all"
+                              />
                             </div>
-                          )}
 
-                          {ticket.datos?.webid && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">WebID:</span>
-                              <span className="font-mono text-xs text-orange-700 bg-orange-50 px-1.5 rounded">{ticket.datos.webid}</span>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase leading-none">Estación</span>
+                              <input
+                                type="text"
+                                value={ticket.datos?.estacion || ''}
+                                placeholder="E01234"
+                                onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, estacion: e.target.value } } : t))}
+                                className="w-full px-2 py-1.5 border border-gray-100 focus:border-orange-500 bg-blue-50/50 rounded-lg text-xs font-bold text-blue-700 outline-none transition-all"
+                              />
                             </div>
-                          )}
 
-                          {ticket.datos?.estacion && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Estación:</span>
-                              <span className="text-xs text-blue-700">{ticket.datos.estacion}</span>
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[9px] font-bold text-gray-400 uppercase leading-none">Fecha</span>
+                              <input
+                                type="text"
+                                value={ticket.datos?.fecha || ''}
+                                onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, fecha: e.target.value } } : t))}
+                                className="w-full px-2 py-1.5 border border-gray-100 focus:border-orange-500 bg-emerald-50/30 rounded-lg text-xs outline-none text-gray-600 transition-all"
+                              />
                             </div>
-                          )}
-
-                          {ticket.intentos > 0 && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Intentos:</span>
-                              <span>{ticket.intentos}/3</span>
-                            </div>
-                          )}
+                          </div>
                         </div>
 
                         {ticket.mensaje && (
@@ -1057,7 +1066,7 @@ function FacturacionAutomatica() {
           </>
         )}
       </div>
-    </div>
+    </div >
   );
 }
 
