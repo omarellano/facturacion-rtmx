@@ -662,8 +662,8 @@ function FacturacionAutomatica() {
                 className="h-12"
               />
               <div>
-                <h1 className="text-3xl font-bold text-white">
-                  Sistema de Facturación Automática
+                <h1 className="text-2xl font-bold text-white">
+                  Sistema de Facturación Automática de Tickets de consumo
                 </h1>
               </div>
             </div>
