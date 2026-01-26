@@ -334,10 +334,15 @@ function FacturacionAutomatica() {
       folio: null
     };
 
-    // Buscar RFC (Patrón simple para México)
+    // Buscar RFC del EMISOR (el comercio) para identificación
     const rfcRegex = /[A-Z&Ñ]{3,4}[0-9]{2}(0[1-9]|1[012])(0[1-9]|[12][0-9]|3[01])[A-Z0-9]{2}[0-9A]/i;
-    const rfcMatch = texto.match(rfcRegex);
-    if (rfcMatch) datos.rfc = rfcMatch[0].toUpperCase();
+    const matches = texto.match(new RegExp(rfcRegex, 'gi'));
+
+    if (matches) {
+      // Filtramos para no confundir con el RFC del usuario si estuviera en el papel
+      // Guardamos los RFCs encontrados para comparar con la base de datos de comercios
+      datos.rfcsEncontrados = matches.map(m => m.toUpperCase());
+    }
 
     // Buscar Total (Busca "TOTAL" y luego un número)
     const totalRegex = /TOTAL[:\s]*\$?\s*([0-9]{1,5}\.[0-9]{2})/i;
@@ -376,8 +381,8 @@ function FacturacionAutomatica() {
       const textoExtraido = result.data.text;
       const datosOcr = extraerDatosDeTexto(textoExtraido);
 
-      // Detección del comercio basada en el texto real
-      const comercioDetectado = detectarComercioPorImagen(textoExtraido, null);
+      // Detección del comercio basada en el texto real (pasando datosOcr para el RFC)
+      const comercioDetectado = detectarComercioPorImagen(textoExtraido, datosOcr);
 
       if (comercioDetectado.comercioId) {
         const comercioSeleccionado = comercios.find(c => c.id === comercioDetectado.comercioId);
@@ -407,33 +412,34 @@ function FacturacionAutomatica() {
     }
   };
 
-  const detectarComercioPorImagen = (textoOArchivo, qrData) => {
+  const detectarComercioPorImagen = (textoOArchivo, datosOcr) => {
     const inputLower = textoOArchivo.toLowerCase();
     const patterns = [
-      { keywords: ['oxxo', 'cadena comercial oxxo'], comercioId: 1, nombre: 'OXXO' },
-      { keywords: ['pemex', 'petroleos mexicanos'], comercioId: 2, nombre: 'Pemex' },
-      { keywords: ['abimerhi'], comercioId: 3, nombre: 'Abimerhi' },
+      { keywords: ['oxxo'], rfc: 'CCO8605231N4', comercioId: 1, nombre: 'OXXO' },
+      { keywords: ['pemex'], rfc: 'PME380607P14', comercioId: 2, nombre: 'Pemex' },
+      { keywords: ['abimerhi'], rfc: 'ABI', comercioId: 3, nombre: 'Abimerhi' },
       { keywords: ['lagas', 'la gas'], comercioId: 4, nombre: 'La Gas' },
       { keywords: ['g500'], comercioId: 5, nombre: 'G500' },
-      { keywords: ['facturasgas'], comercioId: 6, nombre: 'FacturasGas' },
-      { keywords: ['bonpane'], comercioId: 7, nombre: 'Bonpane' },
-      { keywords: ['walmart', 'nueva wal mart'], comercioId: 8, nombre: 'Walmart' },
-      { keywords: ['chedraui'], comercioId: 9, nombre: 'Chedraui' },
-      { keywords: ['soriana'], comercioId: 10, nombre: 'Soriana' },
-      { keywords: ['costco'], comercioId: 11, nombre: 'Costco' },
-      { keywords: ['sams', 'sam\'s club'], comercioId: 12, nombre: "Sam's Club" },
-      { keywords: ['home depot', 'homedepot'], comercioId: 13, nombre: 'Home Depot' },
-      { keywords: ['autozone'], comercioId: 14, nombre: 'AutoZone' },
+      { keywords: ['walmart', 'nueva wal mart'], rfc: 'NWM9709244W4', comercioId: 8, nombre: 'Walmart' },
+      { keywords: ['chedraui'], rfc: 'TCH850701RM1', comercioId: 9, nombre: 'Chedraui' },
     ];
 
-    // Buscar en el texto
+    // 1. Intentar identificar por RFC (lo más seguro)
+    if (datosOcr?.rfcsEncontrados) {
+      for (const rfcEncontrado of datosOcr.rfcsEncontrados) {
+        const match = patterns.find(p => p.rfc === rfcEncontrado);
+        if (match) return { comercioId: match.comercioId, nombre: match.nombre, confianza: 100 };
+      }
+    }
+
+    // 2. Intentar por palabras clave en el texto
     for (const pattern of patterns) {
       for (const keyword of pattern.keywords) {
         if (inputLower.includes(keyword)) {
           return {
             comercioId: pattern.comercioId,
             nombre: pattern.nombre,
-            confianza: 95
+            confianza: 90
           };
         }
       }
