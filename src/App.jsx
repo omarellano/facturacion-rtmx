@@ -634,7 +634,18 @@ function FacturacionAutomatica() {
     );
 
     if (pendientes.length === 0) {
-      alert("No hay tickets listos para procesar. Asegúrate de que tengan un comercio asignado.");
+      // Si todos están completados, preguntar si quiere re-procesar todos
+      const completados = tickets.filter(t => t.estado === 'completado' && t.comercio !== null);
+      if (completados.length > 0) {
+        if (confirm("Todos los tickets ya están marcados como completados. ¿Deseas volver a procesarlos todos?")) {
+          for (const ticket of completados) {
+            await procesarTicket(ticket);
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        }
+      } else {
+        alert("No hay tickets listos. Asegúrate de seleccionar un comercio para cada ticket.");
+      }
       setProcesando(false);
       return;
     }
@@ -972,102 +983,106 @@ function FacturacionAutomatica() {
                           </div>
 
                           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-[9px] font-bold text-gray-400 uppercase leading-none">Monto</span>
-                              <input
-                                type="text"
-                                value={ticket.datos?.total || ''}
-                                onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, total: e.target.value } } : t))}
-                                className="w-full px-2 py-1.5 border border-gray-100 focus:border-orange-500 bg-gray-50 rounded-lg text-xs font-bold outline-none transition-all"
-                              />
-                            </div>
+                            {/* Grid de Datos Editables (Optimizado para Móvil) */}
+                            <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                              <div className="flex flex-col gap-1.5">
+                                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Monto ($)</label>
+                                <input
+                                  type="text"
+                                  value={ticket.datos?.total || ''}
+                                  placeholder="0.00"
+                                  onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, total: e.target.value } } : t))}
+                                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
+                                />
+                              </div>
 
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-[9px] font-bold text-gray-400 uppercase leading-none">WebID / Ref</span>
-                              <input
-                                type="text"
-                                value={ticket.datos?.webid || ''}
-                                placeholder="Código"
-                                onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, webid: e.target.value } } : t))}
-                                className="w-full px-2 py-1.5 border border-gray-100 focus:border-orange-500 bg-orange-50/50 rounded-lg text-xs font-mono font-bold text-orange-700 outline-none transition-all"
-                              />
-                            </div>
+                              <div className="flex flex-col gap-1.5">
+                                <label className="text-[10px] font-black text-orange-400 uppercase tracking-widest pl-1">WebID / Referencia</label>
+                                <input
+                                  type="text"
+                                  value={ticket.datos?.webid || ''}
+                                  placeholder="Código de 8-16 dígitos"
+                                  onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, webid: e.target.value } } : t))}
+                                  className="w-full px-4 py-3 bg-white border border-orange-100 rounded-xl text-sm font-mono font-bold text-orange-700 shadow-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
+                                />
+                              </div>
 
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-[9px] font-bold text-gray-400 uppercase leading-none">Estación</span>
-                              <input
-                                type="text"
-                                value={ticket.datos?.estacion || ''}
-                                placeholder="E01234"
-                                onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, estacion: e.target.value } } : t))}
-                                className="w-full px-2 py-1.5 border border-gray-100 focus:border-orange-500 bg-blue-50/50 rounded-lg text-xs font-bold text-blue-700 outline-none transition-all"
-                              />
-                            </div>
+                              <div className="flex flex-col gap-1.5">
+                                <label className="text-[10px] font-black text-blue-400 uppercase tracking-widest pl-1">Estación (ES)</label>
+                                <input
+                                  type="text"
+                                  value={ticket.datos?.estacion || ''}
+                                  placeholder="E12345"
+                                  onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, estacion: e.target.value } } : t))}
+                                  className="w-full px-4 py-3 bg-white border border-blue-100 rounded-xl text-sm font-bold text-blue-700 shadow-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                                />
+                              </div>
 
-                            <div className="flex flex-col gap-0.5">
-                              <span className="text-[9px] font-bold text-gray-400 uppercase leading-none">Fecha</span>
-                              <input
-                                type="text"
-                                value={ticket.datos?.fecha || ''}
-                                onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, fecha: e.target.value } } : t))}
-                                className="w-full px-2 py-1.5 border border-gray-100 focus:border-orange-500 bg-emerald-50/30 rounded-lg text-xs outline-none text-gray-600 transition-all"
-                              />
+                              <div className="flex flex-col gap-1.5">
+                                <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest pl-1">Fecha Ticket</label>
+                                <input
+                                  type="text"
+                                  value={ticket.datos?.fecha || ''}
+                                  placeholder="DD/MM/AAAA"
+                                  onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, fecha: e.target.value } } : t))}
+                                  className="w-full px-4 py-3 bg-white border border-emerald-100 rounded-xl text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+                                />
+                              </div>
                             </div>
                           </div>
+
+                          {ticket.mensaje && (
+                            <div className={`mt-4 text-xs md:text-sm font-bold flex items-start gap-2.5 p-3 rounded-xl border ${ticket.estado === 'completado' ? 'text-green-800 bg-green-50 border-green-100' :
+                              ticket.estado === 'fallido' ? 'text-red-800 bg-red-50 border-red-100' :
+                                'text-blue-800 bg-blue-50 border-blue-100'
+                              }`}>
+                              <span className="mt-0.5 shrink-0">
+                                {ticket.estado === 'procesando' && <Clock size={16} className="animate-spin" />}
+                                {ticket.estado === 'completado' && <CheckCircle size={16} />}
+                                {ticket.estado === 'fallido' && <XCircle size={16} />}
+                              </span>
+                              <span className="leading-relaxed">{ticket.mensaje}</span>
+                            </div>
+                          )}
+
+                          {ticket.evidencia && (
+                            <button
+                              onClick={() => setEvidenciaModal(ticket.evidencia)}
+                              className="mt-2 text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 transition-all active:scale-95"
+                            >
+                              <Camera size={14} />
+                              Ver Evidencia del Robot
+                            </button>
+                          )}
                         </div>
 
-                        {ticket.mensaje && (
-                          <div className={`mt-3 text-[11px] md:text-sm font-bold flex items-center gap-1.5 p-2 rounded-lg break-words overflow-hidden ${ticket.estado === 'completado' ? 'text-green-700 bg-green-50 border border-green-100' :
-                            ticket.estado === 'fallido' ? 'text-red-700 bg-red-50 border border-red-100' :
-                              'text-blue-700 bg-blue-50 border border-blue-100'
-                            }`}>
-                            <span className="shrink-0">
-                              {ticket.estado === 'procesando' && <Clock size={14} className="animate-spin" />}
-                              {ticket.estado === 'completado' && <CheckCircle size={14} />}
-                              {ticket.estado === 'fallido' && <XCircle size={14} />}
-                            </span>
-                            <span className="truncate md:whitespace-normal">{ticket.mensaje}</span>
-                          </div>
-                        )}
-
-                        {ticket.evidencia && (
+                        <div className="flex items-center gap-2 self-center pt-4 md:pt-0">
+                          {ticket.estado !== 'procesando' && (
+                            <button
+                              onClick={() => procesarTicket(ticket)}
+                              className="p-3 bg-orange-100 text-orange-700 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm active:scale-90"
+                              title="Procesar este ticket ahora"
+                            >
+                              <Play size={22} fill="currentColor" />
+                            </button>
+                          )}
                           <button
-                            onClick={() => setEvidenciaModal(ticket.evidencia)}
-                            className="mt-2 text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 transition-all active:scale-95"
+                            onClick={() => setTickets(prev => prev.filter(t => t.id !== ticket.id))}
+                            className="p-3 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
                           >
-                            <Camera size={14} />
-                            Ver Evidencia del Robot
+                            <Trash2 size={22} />
                           </button>
-                        )}
+                        </div>
                       </div>
-
-                      <div className="flex items-center gap-2 self-center">
-                        {ticket.estado === 'fallido' && (
-                          <button
-                            onClick={() => procesarTicket(ticket)}
-                            className="p-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors"
-                            title="Reintentar"
-                          >
-                            <Play size={18} />
-                          </button>
-                        )}
-                        <button
-                          onClick={() => setTickets(prev => prev.filter(t => t.id !== ticket.id))}
-                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 size={18} />
-                        </button>
-                      </div>
-                    </div>
                   ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
           </>
         )}
-      </div>
-    </div >
-  );
+          </div>
+      </div >
+      );
 }
 
-export default FacturacionAutomatica;
+      export default FacturacionAutomatica;
