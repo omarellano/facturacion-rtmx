@@ -623,8 +623,7 @@ function FacturacionAutomatica() {
   };
 
   return (
-  return (
-    <div className="min-h-screen bg-gray-50 p-3 md:p-6" style={{ backgroundColor: '#f5f5f5' }}>
+    <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-6" style={{ backgroundColor: '#f5f5f5' }}>
       {/* Modal de escaneo QR manual */}
       {escaneoQR && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -666,36 +665,34 @@ function FacturacionAutomatica() {
 
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Card 1: Cabecera Principal */}
-        <div className="rounded-2xl shadow-xl p-4 md:p-6 text-center md:text-left" style={{ backgroundColor: '#000052' }}>
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 pb-4 border-b border-white/20">
-            <div className="flex flex-col md:flex-row items-center gap-4">
+        <div className="rounded-2xl shadow-xl p-4 md:p-6" style={{ backgroundColor: '#000052' }}>
+          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+            <div className="flex flex-col md:flex-row items-center text-center md:text-left gap-4 w-full md:w-auto">
               <img
                 src={logoRotulate}
-                alt="Rotulate Soluciones Gráficas"
-                className="h-10 md:h-12"
+                alt="Rotulate"
+                className="h-12 md:h-14 object-contain"
               />
-              <div>
-                <h1 className="text-lg md:text-2xl font-bold text-white">
+              <div className="space-y-1">
+                <h1 className="text-xl md:text-2xl font-bold text-white leading-tight">
                   Sistema de Facturación Automática
                 </h1>
-                <p className="text-white/60 text-xs md:text-sm">Tickets de consumo • Robot México</p>
+                <p className="text-white/60 text-sm">Tickets de consumo • Robot México</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center justify-center gap-3 w-full md:w-auto">
               <button
                 onClick={() => setVista(vista === 'facturacion' ? 'estadisticas' : 'facturacion')}
-                className={`p-2 rounded-lg transition-all flex items-center gap-2 ${vista === 'estadisticas' ? 'bg-orange-500 text-white shadow-lg' : 'hover:bg-white/10 text-white'}`}
-                title="Estadísticas"
+                className={`flex-1 md:flex-none px-4 py-2 rounded-xl transition-all flex items-center justify-center gap-2 border ${vista === 'estadisticas' ? 'bg-orange-500 border-orange-400 text-white shadow-lg' : 'hover:bg-white/10 text-white border-white/20'}`}
               >
-                <BarChart2 size={20} className="md:w-6 md:h-6" style={{ color: '#ffffff' }} />
-                <span className="font-medium text-white text-sm md:text-base">Dashboard</span>
+                <BarChart2 size={18} />
+                <span className="font-bold text-sm">Dashboard</span>
               </button>
               <button
                 onClick={() => setMostrarConfig(!mostrarConfig)}
-                className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                title="Configuración"
+                className="p-2 hover:bg-white/10 rounded-xl transition-colors border border-white/20 text-white"
               >
-                <Settings size={20} className="md:w-6 md:h-6" style={{ color: '#ffffff' }} />
+                <Settings size={22} />
               </button>
             </div>
           </div>
@@ -708,23 +705,23 @@ function FacturacionAutomatica() {
             {/* Card 2: Estadísticas y Controles */}
             <div className="rounded-2xl shadow-xl p-4 md:p-6" style={{ backgroundColor: '#000052' }}>
               <div className="space-y-6">
-                {/* Estadísticas Rápidas */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-                  <div className="bg-white/10 backdrop-blur-sm p-3 md:p-4 rounded-lg border-l-4 border-white/30">
-                    <div className="text-xl md:text-2xl font-bold text-white">{estadisticas.total}</div>
-                    <div className="text-[10px] md:text-sm text-white/70">Total</div>
+                {/* Cuadrícula de Estadísticas (Ajustada para móvil) */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+                  <div className="bg-white/10 backdrop-blur-sm p-4 rounded-xl border-l-4 border-blue-400">
+                    <div className="text-2xl font-bold text-white leading-none">{estadisticas.total}</div>
+                    <div className="text-[10px] md:text-xs uppercase tracking-wider font-bold text-white/50 mt-1">Cargados</div>
                   </div>
-                  <div className="bg-green-500/20 backdrop-blur-sm p-3 md:p-4 rounded-lg border-l-4 border-[#00ff00]">
-                    <div className="text-xl md:text-2xl font-bold text-[#00ff00]">{estadisticas.completados}</div>
-                    <div className="text-[10px] md:text-sm text-white/70">Listos</div>
+                  <div className="bg-green-500/10 backdrop-blur-sm p-4 rounded-xl border-l-4 border-green-400">
+                    <div className="text-2xl font-bold text-green-400 leading-none">{estadisticas.completados}</div>
+                    <div className="text-[10px] md:text-xs uppercase tracking-wider font-bold text-white/50 mt-1">Éxito</div>
                   </div>
-                  <div className="bg-orange-500/20 backdrop-blur-sm p-3 md:p-4 rounded-lg border-l-4 border-[#ff6400]">
-                    <div className="text-xl md:text-2xl font-bold text-[#ff6400]">{estadisticas.pendientes}</div>
-                    <div className="text-[10px] md:text-sm text-white/70">Pendientes</div>
+                  <div className="bg-orange-500/10 backdrop-blur-sm p-4 rounded-xl border-l-4 border-orange-400">
+                    <div className="text-2xl font-bold text-orange-400 leading-none">{estadisticas.pendientes}</div>
+                    <div className="text-[10px] md:text-xs uppercase tracking-wider font-bold text-white/50 mt-1">Pendientes</div>
                   </div>
-                  <div className="bg-red-500/20 backdrop-blur-sm p-3 md:p-4 rounded-lg border-l-4 border-red-500">
-                    <div className="text-xl md:text-2xl font-bold text-red-500">{estadisticas.fallidos}</div>
-                    <div className="text-[10px] md:text-sm text-white/70">Error</div>
+                  <div className="bg-red-500/10 backdrop-blur-sm p-4 rounded-xl border-l-4 border-red-400">
+                    <div className="text-2xl font-bold text-red-400 leading-none">{estadisticas.fallidos}</div>
+                    <div className="text-[10px] md:text-xs uppercase tracking-wider font-bold text-white/50 mt-1">Fallos</div>
                   </div>
                 </div>
 
@@ -773,12 +770,15 @@ function FacturacionAutomatica() {
                   </div>
                 )}
 
-                {/* Zona de Carga y Acción */}
-                <div className="flex flex-col md:flex-row gap-4">
+                {/* Zona de Carga y Acción (Totalmente Responsive) */}
+                <div className="flex flex-col sm:flex-row gap-4">
                   <label className="flex-1 cursor-pointer group">
-                    <div className="border-2 border-dashed border-white/30 rounded-lg p-4 md:p-8 text-center group-hover:bg-white/5 group-hover:border-[#ff6400] transition-all">
-                      <Upload className="mx-auto mb-2 text-white/50 group-hover:text-[#ff6400]" size={24} />
-                      <span className="text-white/70 group-hover:text-white text-sm md:text-base">Subir tickets</span>
+                    <div className="h-full border-2 border-dashed border-white/20 rounded-xl p-6 text-center group-hover:bg-white/5 group-hover:border-orange-500 transition-all flex flex-col items-center justify-center">
+                      <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                        <Upload className="text-white/70 group-hover:text-orange-500" size={24} />
+                      </div>
+                      <span className="text-white font-medium">Subir tickets</span>
+                      <p className="text-white/40 text-[10px] mt-1">PDF, JPG o PNG</p>
                       <input
                         type="file"
                         multiple
@@ -792,16 +792,16 @@ function FacturacionAutomatica() {
                   <button
                     onClick={procesarTodos}
                     disabled={procesando || tickets.length === 0}
-                    className="w-full md:w-auto px-8 py-4 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 disabled:grayscale disabled:opacity-50"
+                    className="w-full sm:w-auto sm:px-10 py-6 rounded-xl font-black text-lg flex items-center justify-center gap-3 transition-all shadow-2xl active:scale-95 disabled:grayscale disabled:opacity-50 ring-4 ring-transparent hover:ring-green-400/30"
                     style={{
-                      backgroundColor: procesando || tickets.length === 0 ? '#4b5563' : '#00ff00',
+                      backgroundColor: procesando || tickets.length === 0 ? '#374151' : '#00ff00',
                       color: '#000052'
                     }}
                   >
                     {procesando ? (
-                      <><Pause size={20} className="animate-pulse" /> Procesando...</>
+                      <><Pause size={24} className="animate-pulse" /> Procesando...</>
                     ) : (
-                      <><Play size={20} /> Iniciar Facturación</>
+                      <><Play size={24} fill="#000052" /> FACTURAR TODO</>
                     )}
                   </button>
                 </div>
