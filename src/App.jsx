@@ -352,76 +352,101 @@ function FacturacionAutomatica() {
     setTickets(prev => [...prev, nuevoTicket]);
   };
 
+  // Función principal para extraer datos por OCR (Mejorada para ser más agresiva)
   const extraerDatosDeTexto = (texto) => {
-    const lines = texto.split('\n');
+    // Limpieza de ruido común en OCR
+    const textoLimpio = texto.replace(/[|¦]/g, 'I').replace(/[°º]/g, '');
+
     const datos = {
       rfc: null,
       total: null,
       fecha: null,
-      folio: null
+      folio: null,
+      webid: null,
+      estacion: null
     };
 
-    // Buscar RFC del EMISOR (el comercio) para identificación
-    const rfcRegex = /([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])/i;
-    const matches = texto.match(new RegExp(rfcRegex, 'gi'));
-
-    if (matches) {
-      datos.rfcsEncontrados = matches.map(m => m.replace(/[\s-]/g, '').toUpperCase());
+    // 1. Buscador de RFC (Más agresivo)
+    const rfcRegex = /([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])/gi;
+    const rfcMatches = textoLimpio.match(rfcRegex);
+    if (rfcMatches) {
+      datos.rfcsEncontrados = rfcMatches.map(m => m.replace(/[\s-]/g, '').toUpperCase());
     }
 
-    // Buscar Total: Más patrones y flexibilidad
+    // 2. Buscador de Total (Múltiples anclas y flexibilidad decimal)
     const totalPatterns = [
-      /(?:TOTAL|IMPORTE|PAGO|NETO|PAGAR|Monto Total)[\s\S]{0,30}?\$?\s*([\d,]+\.\d{2})/i,
-      /\$?\s*([\d,]+\.\d{2})\s*(?:MXN|PESOS)/i,
-      /Total\s*\$?\s*([\d,]+\.\d{2})/i
+      /(?:TOTAL|IMPORTE|NETO|PAGAR|MONTO|PAGO|VENTA)[\s\S]{0,40}?\$?\s*([\d,]+\.\d{2})/i,
+      /(?:TOTAL)\s*:?\s*\$?\s*([\d,]+\.\d{2})/i,
+      /\$?\s*([\d,]+\.\d{2})\s*(?:MXN|PESOS|M\.N\.)/i,
+      /([\d,]+\.\d{2})\s*$/m // Último número con decimales al final de una línea suele ser el total
     ];
 
     for (const pattern of totalPatterns) {
-      const match = texto.match(pattern);
+      const match = textoLimpio.match(pattern);
       if (match) {
         datos.total = match[1].replace(/,/g, '');
         break;
       }
     }
 
-    // Buscar Fecha: DD/MM/YYYY, DD-MM-YY, etc.
+    // 3. Buscador de Fecha
     const fechaRegex = /(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/;
-    const fechaMatch = texto.match(fechaRegex);
+    const fechaMatch = textoLimpio.match(fechaRegex);
     if (fechaMatch) datos.fecha = fechaMatch[1];
 
-    // Buscar Folio/Ticket: Más específico para diferentes comercios
+    // 4. Folio / Ticket (Muy agresivo para Pemex/Oxxo/etc)
     const folioPatterns = [
-      /(?:FOLIO|TICKET|TRANS|NOTA|VENTA|F:|\bF\b)[\s\S]{0,20}?([A-Z0-9-]{6,})/i,
-      /Referencia:?\s*([A-Z0-9-]{6,})/i,
-      /No\.?\s*Ticket:?\s*([0-9-]{6,})/i
+      /(?:FOLIO|TICKET|TRANS|NOTA|VENTA|NO\.?T|F:|F\s|DOC|REF|REFERENCIA)[\s\S]{0,20}?\s*#?([A-Z0-9-]{4,20})/i,
+      /TICKET\s*#?\s*(\d{4,15})/i,
+      /FOLIO\s*:?\s*([A-Z0-9]{4,15})/i,
+      /\b([A-Z]{1,2}\d{4,10})\b/
     ];
 
     for (const pattern of folioPatterns) {
-      const match = texto.match(pattern);
-      if (match) {
-        datos.folio = match[1];
-        break;
+      const match = textoLimpio.match(pattern);
+      if (match && !/total|monto|fecha|id|web|mex|rfc/i.test(match[0])) {
+        const candidate = match[1].trim();
+        if (candidate.length > 3) {
+          datos.folio = candidate;
+          break;
+        }
       }
     }
 
-    // Buscar WebID / Código de Facturación
+    // 5. WebID / Código de Facturación (Crítico para auto-facturación)
     const webidPatterns = [
-      /(?:WEBID|WEB ID|CLAVE|CODIGO|FACTURACION|REF|REFERENCIA|ID)[\s\S]{0,15}?([A-Z0-9-]{8,25})/i,
-      /Facturación\s+([A-Z0-9]{10,})/i
+      /(?:WEBID|WEB ID|CLAVE|CODIGO|FACT|REF|KEY|ID|FACTURACION|FACTURAR)[\s\S]{0,25}?\s*([A-Z0-9]{8,35})/i,
+      /FACTURAR\s+(?:EN|CON)?[\s\S]{0,20}?([A-Z0-9]{8,35})/i,
+      /\b([A-Z0-9]{12,32})\b/i, // Bloques largos de alfanuméricos suelen ser el WebID
+      /ID\s*:\s*([A-Z0-9]{8,})/i
     ];
 
     for (const pattern of webidPatterns) {
-      const match = texto.match(pattern);
+      const match = textoLimpio.match(pattern);
       if (match) {
-        datos.webid = match[1];
-        break;
+        const candidate = match[1].trim();
+        // Validar que no sea el folio o el rfc
+        if (candidate !== datos.folio && !/total|monto|fecha|mex|rfc/i.test(candidate)) {
+          datos.webid = candidate;
+          break;
+        }
       }
     }
 
-    // Buscar Estación (E01234, PL/1234/EXP/ES/2015, etc)
-    const estacionRegex = /(?:ESTACION|E\.\s*S\.|ES|PERMISO|CRE|ES\.\d+)[\s\S]{0,15}?(E\d{4,6}|PL\/\d+\/EXP\/ES\/\d{4})/i;
-    const estacionMatch = texto.match(estacionRegex);
-    if (estacionMatch) datos.estacion = estacionMatch[1];
+    // 6. Estación (Pemex E01234 o CRE)
+    const estacionPatterns = [
+      /(?:ESTACION|E\.?S\.?|ES|CRE|PERMISO|EST|PERM)[\s\S]{0,20}?\s*(E\s*\d{4,6}|PL\/\d+\/EXP\/ES\/\d{4})/i,
+      /(E\s*\d{5})/i,
+      /(PL\/\d{4,}\/EXP\/ES\/\d{4})/i
+    ];
+
+    for (const pattern of estacionPatterns) {
+      const match = textoLimpio.match(pattern);
+      if (match) {
+        datos.estacion = match[1].replace(/\s/g, '').toUpperCase();
+        break;
+      }
+    }
 
     return datos;
   };
@@ -987,24 +1012,57 @@ function FacturacionAutomatica() {
                       className={`group border-2 rounded-xl p-3 sm:p-5 transition-all duration-300 ${ticketActual === ticket.id ? 'border-orange-500 bg-orange-50 shadow-md ring-4 ring-orange-500/10' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
                         }`}
                     >
-                      <div className="flex flex-col sm:flex-row items-start gap-3 sm:gap-5">
-                        <div className="shrink-0 p-2 sm:p-3 bg-white rounded-lg shadow-sm border border-gray-50 flex items-center justify-center">
-                          {getEstadoIcon(ticket.estado)}
+                      <div className="flex flex-col lg:flex-row items-stretch gap-6">
+                        {/* Previsualización del Ticket (VITAL PARA PC) */}
+                        <div className="lg:w-1/3 shrink-0 group/img relative">
+                          <div className="h-full min-h-[150px] lg:h-[280px] bg-gray-100 rounded-2xl border-2 border-gray-100 overflow-hidden shadow-inner flex items-center justify-center cursor-zoom-in"
+                            onClick={() => setEvidenciaModal(URL.createObjectURL(ticket.archivo))}>
+                            {ticket.archivo ? (
+                              <img
+                                src={URL.createObjectURL(ticket.archivo)}
+                                alt="Ticket"
+                                className="w-full h-full object-contain hover:scale-110 transition-transform duration-500"
+                              />
+                            ) : (
+                              <Camera size={40} className="text-gray-300" />
+                            )}
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center text-white font-bold text-xs">
+                              CLIC PARA AMPLIAR
+                            </div>
+                          </div>
+                          <div className="absolute top-3 left-3 flex items-center gap-2">
+                            <div className="p-2 bg-white/90 backdrop-blur rounded-lg shadow-sm">
+                              {getEstadoIcon(ticket.estado)}
+                            </div>
+                            {ticket.tempImageUrl && (
+                              <span className="bg-orange-500 text-white text-[10px] font-black px-2 py-1 rounded shadow-lg animate-bounce">
+                                OCR ACTIVO
+                              </span>
+                            )}
+                          </div>
                         </div>
 
-                        <div className="flex-1 w-full min-w-0">
-                          <div className="flex items-center justify-between gap-2 mb-1">
-                            <h3 className="font-bold text-gray-900 text-sm truncate">{ticket.nombre}</h3>
+                        {/* Formulario de Datos (DERECHA EN PC) */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 mb-4">
+                            <h3 className="font-bold text-gray-900 text-base lg:text-lg truncate flex items-center gap-2">
+                              <div className="w-1.5 h-4 bg-orange-400 rounded-full"></div>
+                              {ticket.nombre}
+                            </h3>
                             {ticket.datos?.total && (
-                              <span className="shrink-0 font-black text-white bg-gray-900 px-1.5 py-0.5 rounded text-[11px]">
+                              <span className="shrink-0 font-black text-white bg-orange-600 px-3 py-1 rounded-xl text-sm shadow-md">
                                 ${ticket.datos.total}
                               </span>
                             )}
                           </div>
+
                           {ticket.usarCredenciales && (
-                            <span className="text-[10px] uppercase tracking-wider font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
-                              Cuenta Activa
-                            </span>
+                            <div className="mb-4">
+                              <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-black bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full border border-emerald-200">
+                                <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
+                                Emisión Automática Activa
+                              </span>
+                            </div>
                           )}
 
                           <div className="mt-4 space-y-4">
@@ -1110,21 +1168,25 @@ function FacturacionAutomatica() {
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2 self-center pt-4 md:pt-0">
+                        {/* Botones de Acción (Vertical en PC, Horizontal en Móvil) */}
+                        <div className="flex flex-row lg:flex-col items-center justify-center gap-4 lg:border-l lg:pl-6 border-gray-100">
                           {ticket.estado !== 'procesando' && (
                             <button
                               onClick={() => procesarTicket(ticket)}
-                              className="p-3 bg-orange-100 text-orange-700 rounded-xl hover:bg-orange-500 hover:text-white transition-all shadow-sm active:scale-90"
-                              title="Procesar este ticket ahora"
+                              className="w-full lg:w-16 h-12 lg:h-16 bg-orange-100 text-orange-700 rounded-2xl hover:bg-orange-600 hover:text-white transition-all shadow-sm active:scale-90 flex items-center justify-center gap-2 lg:gap-0 font-bold lg:font-normal"
+                              title="Facturar este ticket"
                             >
-                              <Play size={22} fill="currentColor" />
+                              <Play size={28} fill="currentColor" />
+                              <span className="lg:hidden">FACTURAR</span>
                             </button>
                           )}
                           <button
                             onClick={() => setTickets(prev => prev.filter(t => t.id !== ticket.id))}
-                            className="p-3 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                            className="w-full lg:w-16 h-12 lg:h-16 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-colors flex items-center justify-center gap-2 lg:gap-0 font-bold lg:font-normal"
+                            title="Eliminar"
                           >
-                            <Trash2 size={22} />
+                            <Trash2 size={24} />
+                            <span className="lg:hidden">ELIMINAR</span>
                           </button>
                         </div>
                       </div>
