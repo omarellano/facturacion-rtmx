@@ -502,7 +502,7 @@ function FacturacionAutomatica() {
   };
 
   const enviarAlRobot = async (ticket) => {
-    const backendUrl = 'http://localhost:3001/facturar';
+    const backendUrl = 'https://angelina-unrecuperated-lorilee.ngrok-free.dev/facturar';
 
     try {
       const response = await fetch(backendUrl, {
@@ -529,7 +529,7 @@ function FacturacionAutomatica() {
       return await response.json();
     } catch (error) {
       console.error("Error conectando con el backend:", error);
-      throw new Error(`Servidor Offline: Asegúrate de que el backend esté corriendo en el puerto 3001 (${error.message})`);
+      throw new Error(`Servidor Offline: El robot no está disponible en internet (${error.message})`);
     }
   };
 
