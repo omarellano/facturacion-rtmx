@@ -335,24 +335,30 @@ function FacturacionAutomatica() {
     };
 
     // Buscar RFC del EMISOR (el comercio) para identificación
-    const rfcRegex = /[A-Z&Ñ]{3,4}[0-9]{2}(0[1-9]|1[012])(0[1-9]|[12][0-9]|3[01])[A-Z0-9]{2}[0-9A]/i;
+    // Patrón robusto para RFC Mexicano (Moral y Física)
+    const rfcRegex = /([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])/i;
     const matches = texto.match(new RegExp(rfcRegex, 'gi'));
 
     if (matches) {
-      // Filtramos para no confundir con el RFC del usuario si estuviera en el papel
-      // Guardamos los RFCs encontrados para comparar con la base de datos de comercios
-      datos.rfcsEncontrados = matches.map(m => m.toUpperCase());
+      datos.rfcsEncontrados = matches.map(m => m.replace(/[\s-]/g, '').toUpperCase());
     }
 
-    // Buscar Total (Busca "TOTAL" y luego un número)
-    const totalRegex = /TOTAL[:\s]*\$?\s*([0-9]{1,5}\.[0-9]{2})/i;
+    // Buscar Total: Maneja "$", espacios, comas y variaciones de la palabra TOTAL
+    const totalRegex = /(?:TOTAL|IMPORTE TOTAL|PAGO|NETO).*?\$?\s*([\d,]+\.\d{2})/i;
     const totalMatch = texto.match(totalRegex);
-    if (totalMatch) datos.total = totalMatch[1];
+    if (totalMatch) {
+      datos.total = totalMatch[1].replace(/,/g, '');
+    }
 
-    // Buscar Fecha (DD/MM/YYYY o similar)
-    const fechaRegex = /(\d{2}[\/-]\d{2}[\/-]\d{2,4})/;
+    // Buscar Fecha: DD/MM/YYYY, DD-MM-YY, etc.
+    const fechaRegex = /(\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4})/;
     const fechaMatch = texto.match(fechaRegex);
     if (fechaMatch) datos.fecha = fechaMatch[1];
+
+    // Buscar Folio: Típico en tickets de gasolina o retail
+    const folioRegex = /(?:FOLIO|TICKET|TRANS|NOTA|VENTA).*?(\d+[A-Z\d]*)/i;
+    const folioMatch = texto.match(folioRegex);
+    if (folioMatch) datos.folio = folioMatch[1];
 
     return datos;
   };
@@ -371,6 +377,7 @@ function FacturacionAutomatica() {
     try {
       // Usar Tesseract para leer la imagen
       const result = await Tesseract.recognize(archivo, 'spa', {
+        workerBlobURL: false, // Evita problemas en algunos entornos
         logger: m => {
           if (m.status === 'recognizing text') {
             actualizarTicket({ mensaje: `Leyendo texto: ${Math.floor(m.progress * 100)}%` });
@@ -381,19 +388,18 @@ function FacturacionAutomatica() {
       const textoExtraido = result.data.text;
       const datosOcr = extraerDatosDeTexto(textoExtraido);
 
-      // Detección del comercio basada en el texto real (pasando datosOcr para el RFC)
+      // Detección del comercio basada en el texto real
       const comercioDetectado = detectarComercioPorImagen(textoExtraido, datosOcr);
 
       if (comercioDetectado.comercioId) {
-        const comercioSeleccionado = comercios.find(c => c.id === comercioDetectado.comercioId);
         actualizarTicket({
           comercio: comercioDetectado.comercioId,
           comercioDetectado: comercioDetectado.comercioId,
           confianzaDeteccion: comercioDetectado.confianza,
-          qrDetectado: false, // Por ahora solo OCR plano
+          qrDetectado: false,
           datos: { ...datosOcr, rawText: textoExtraido },
           deteccionComercioStatus: 'detectado',
-          mensaje: `✓ ${comercioDetectado.nombre} detectado • Datos extraídos: $${datosOcr.total || '?'}`
+          mensaje: `✓ ${comercioDetectado.nombre} detectado • Total: $${datosOcr.total || '?'}`
         });
       } else {
         actualizarTicket({
@@ -406,7 +412,7 @@ function FacturacionAutomatica() {
     } catch (error) {
       console.error("Error en OCR:", error);
       actualizarTicket({
-        mensaje: 'Error al leer el ticket',
+        mensaje: 'Error al leer el ticket (OCR)',
         deteccionComercioStatus: 'manual'
       });
     }
@@ -415,16 +421,16 @@ function FacturacionAutomatica() {
   const detectarComercioPorImagen = (textoOArchivo, datosOcr) => {
     const inputLower = textoOArchivo.toLowerCase();
     const patterns = [
-      { keywords: ['oxxo'], rfc: 'CCO8605231N4', comercioId: 1, nombre: 'OXXO' },
-      { keywords: ['pemex'], rfc: 'PME380607P14', comercioId: 2, nombre: 'Pemex' },
-      { keywords: ['abimerhi'], rfc: 'ABI', comercioId: 3, nombre: 'Abimerhi' },
-      { keywords: ['lagas', 'la gas'], comercioId: 4, nombre: 'La Gas' },
-      { keywords: ['g500'], comercioId: 5, nombre: 'G500' },
-      { keywords: ['walmart', 'nueva wal mart'], rfc: 'NWM9709244W4', comercioId: 8, nombre: 'Walmart' },
-      { keywords: ['chedraui'], rfc: 'TCH850701RM1', comercioId: 9, nombre: 'Chedraui' },
+      { keywords: ['oxxo', 'cadena comercial oxxo'], rfc: 'CCO8605231N4', comercioId: 1, nombre: 'OXXO' },
+      { keywords: ['pemex', 'combustibles', 'gasolinera'], rfc: 'PME380607P14', comercioId: 2, nombre: 'Pemex' },
+      { keywords: ['abimerhi', 'estacionamiento', 'servicios abimerhi'], comercioId: 3, nombre: 'Abimerhi' },
+      { keywords: ['lagas', 'la gas', 'corporativo de servicios'], comercioId: 4, nombre: 'La Gas' },
+      { keywords: ['g500', 'gasolinera g500'], comercioId: 5, nombre: 'G500' },
+      { keywords: ['walmart', 'nueva wal mart', 'wal-mart'], rfc: 'NWM9709244W4', comercioId: 8, nombre: 'Walmart' },
+      { keywords: ['chedraui', 'tiendas chedraui'], rfc: 'TCH850701RM1', comercioId: 9, nombre: 'Chedraui' },
     ];
 
-    // 1. Intentar identificar por RFC (lo más seguro)
+    // 1. Intentar identificar por RFC
     if (datosOcr?.rfcsEncontrados) {
       for (const rfcEncontrado of datosOcr.rfcsEncontrados) {
         const match = patterns.find(p => p.rfc === rfcEncontrado);
@@ -432,7 +438,7 @@ function FacturacionAutomatica() {
       }
     }
 
-    // 2. Intentar por palabras clave en el texto
+    // 2. Intentar por palabras clave
     for (const pattern of patterns) {
       for (const keyword of pattern.keywords) {
         if (inputLower.includes(keyword)) {
@@ -445,11 +451,7 @@ function FacturacionAutomatica() {
       }
     }
 
-    return {
-      comercioId: null,
-      nombre: null,
-      confianza: 0
-    };
+    return { comercioId: null, nombre: null, confianza: 0 };
   };
 
   const escanearQRManual = async (ticketId) => {
@@ -499,40 +501,36 @@ function FacturacionAutomatica() {
     archivos.forEach(archivo => agregarTicket(archivo));
   };
 
-  const simularFacturacion = async (ticket) => {
-    // Simula el proceso de facturación
-    await new Promise(resolve => setTimeout(resolve, 2000));
+  const enviarAlRobot = async (ticket) => {
+    const backendUrl = 'http://localhost:3001/facturar';
 
-    const comercio = comercios.find(c => c.id === ticket.comercio);
+    try {
+      const response = await fetch(backendUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ticket: {
+            id: ticket.id,
+            nombre: ticket.nombre,
+            comercio: ticket.comercio,
+            datos: ticket.datos,
+            qrData: ticket.qrData
+          },
+          config: datosFacturacion,
+          credenciales: credenciales[ticket.comercio] || null
+        })
+      });
 
-    // Simular diferentes escenarios
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error en el servidor de automatización');
+      }
 
-    // Validar credenciales si son requeridas
-    if (comercio?.tipoAuth === 'siempre' && !credenciales[comercio.id]) {
-      // Comercio requiere autenticación obligatoria pero no hay credenciales
-      throw new Error('Este comercio requiere autenticación obligatoria. Configure credenciales.');
-    } else if (comercio?.tipoAuth === 'opcional' && ticket.usarCredenciales && !credenciales[comercio.id]) {
-      // Usuario quiere usar credenciales pero no están configuradas
-      throw new Error('Credenciales no configuradas para este comercio');
+      return await response.json();
+    } catch (error) {
+      console.error("Error conectando con el backend:", error);
+      throw new Error(`Servidor Offline: Asegúrate de que el backend esté corriendo en el puerto 3001 (${error.message})`);
     }
-
-    // Éxito
-    const metodo = ticket.usarCredenciales ? 'con cuenta' : 'sin cuenta';
-    const usaQR = ticket.qrDetectado && comercio?.soportaQR;
-
-    // Simular detección de ticket ya facturado (solo si el QR lo indica explícitamente)
-    if (ticket.yaFacturado) {
-      throw new Error('El ticket ya fue facturado previamente');
-    }
-
-    return {
-      folio: `FAC-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
-      uuid: ticket.qrData?.uuid || `${Math.random().toString(36).substr(2, 9)}-${Math.random().toString(36).substr(2, 4)}`,
-      fecha: new Date().toLocaleString('es-MX'),
-      metodo: metodo,
-      viaQR: usaQR,
-      total: ticket.qrData?.total || 'N/A'
-    };
   };
 
   const procesarTicket = async (ticket) => {
@@ -547,25 +545,30 @@ function FacturacionAutomatica() {
     try {
       actualizarTicket({
         estado: 'procesando',
-        intentos: ticket.intentos + 1,
-        ultimoIntento: new Date().toISOString()
+        intentos: (ticket.intentos || 0) + 1,
+        ultimoIntento: new Date().toISOString(),
+        mensaje: 'Conectando con el robot...'
       });
 
-      const resultado = await simularFacturacion(ticket);
+      // Llamada real al backend
+      const resultado = await enviarAlRobot(ticket);
 
-      actualizarTicket({
-        estado: 'completado',
-        mensaje: `Factura generada: ${resultado.folio}`,
-        datos: resultado
-      });
+      if (resultado.success) {
+        actualizarTicket({
+          estado: 'completado',
+          mensaje: `✓ ${resultado.message || 'Facturado con éxito'}`,
+          datos: { ...ticket.datos, ...resultado.datos, folio: resultado.datos?.folio || 'Ver PDF' }
+        });
+        return true;
+      } else {
+        throw new Error(resultado.message || 'El robot no pudo completar la factura');
+      }
 
-      return true;
     } catch (error) {
       actualizarTicket({
-        estado: ticket.intentos >= 2 ? 'fallido' : 'pendiente',
-        mensaje: error.message
+        estado: (ticket.intentos || 0) >= 2 ? 'fallido' : 'pendiente',
+        mensaje: `⚠️ ${error.message}`
       });
-
       return false;
     } finally {
       setTicketActual(null);
@@ -576,13 +579,19 @@ function FacturacionAutomatica() {
     setProcesando(true);
 
     const pendientes = tickets.filter(t =>
-      t.estado === 'pendiente' || (t.estado === 'fallido' && t.intentos < 3)
+      (t.estado === 'pendiente' || t.estado === 'fallido') && t.comercio !== null
     );
 
+    if (pendientes.length === 0) {
+      alert("No hay tickets listos para procesar. Asegúrate de que tengan un comercio asignado.");
+      setProcesando(false);
+      return;
+    }
+
     for (const ticket of pendientes) {
-      // Validación de estado eliminado temporalmente para corregir error de inicio
       await procesarTicket(ticket);
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Pequeña pausa entre tickets
+      await new Promise(resolve => setTimeout(resolve, 1500));
     }
 
     setProcesando(false);
@@ -843,26 +852,54 @@ function FacturacionAutomatica() {
                             )}
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
-                            {ticket.comercio && (
-                              <span className="flex items-center gap-1 font-medium text-gray-700">
-                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span>
-                                {comercios.find(c => c.id === ticket.comercio)?.nombre}
-                              </span>
+                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-500 mt-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Comercio:</span>
+                              <select
+                                value={ticket.comercio || ''}
+                                onChange={(e) => {
+                                  const val = e.target.value ? parseInt(e.target.value) : null;
+                                  setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, comercio: val, deteccionComercioStatus: val ? 'manual' : 'manual' } : t));
+                                }}
+                                className={`px-3 py-1.5 rounded-lg border text-sm font-medium focus:ring-2 focus:ring-orange-500 outline-none transition-all ${!ticket.comercio ? 'border-red-300 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-gray-700'}`}
+                              >
+                                <option value="">-- Seleccionar Comercio --</option>
+                                {comercios.map(c => (
+                                  <option key={c.id} value={c.id}>{c.nombre}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {ticket.datos?.total && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Monto:</span>
+                                <span className="font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded-md">${ticket.datos.total}</span>
+                              </div>
                             )}
-                            {ticket.qrData?.total && (
-                              <span className="font-bold text-gray-900">${ticket.qrData.total}</span>
+
+                            {ticket.datos?.fecha && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Fecha:</span>
+                                <span className="text-gray-700">{ticket.datos.fecha}</span>
+                              </div>
                             )}
-                            {ticket.intentos > 0 && <span>Intento {ticket.intentos}/3</span>}
+
+                            {ticket.intentos > 0 && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Intentos:</span>
+                                <span>{ticket.intentos}/3</span>
+                              </div>
+                            )}
                           </div>
 
                           {ticket.mensaje && (
-                            <div className={`mt-3 text-sm font-medium flex items-center gap-1.5 ${ticket.estado === 'completado' ? 'text-green-600' :
-                              ticket.estado === 'fallido' ? 'text-red-500' : 'text-blue-600'
+                            <div className={`mt-3 text-sm font-medium flex items-center gap-1.5 p-2 rounded-lg ${ticket.estado === 'completado' ? 'text-green-700 bg-green-50 border border-green-100' :
+                              ticket.estado === 'fallido' ? 'text-red-700 bg-red-50 border border-red-100' :
+                                'text-blue-700 bg-blue-50 border border-blue-100'
                               }`}>
-                              <span className={`w-1 h-1 rounded-full ${ticket.estado === 'completado' ? 'bg-green-600' :
-                                ticket.estado === 'fallido' ? 'bg-red-500' : 'bg-blue-600'
-                                }`}></span>
+                              {ticket.estado === 'procesando' && <Clock size={14} className="animate-spin" />}
+                              {ticket.estado === 'completado' && <CheckCircle size={14} />}
+                              {ticket.estado === 'fallido' && <XCircle size={14} />}
                               {ticket.mensaje}
                             </div>
                           )}

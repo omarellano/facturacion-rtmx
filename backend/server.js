@@ -1,7 +1,8 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const puppeteer = require('puppeteer');
+const { facturarOXXO } = require('./robots/oxxo');
+const { facturarGasolina } = require('./robots/gasolina');
 
 dotenv.config();
 
@@ -11,36 +12,58 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
 
+// Registro de robots disponibles
+const robots = {
+    1: facturarOXXO,     // OXXO
+    2: facturarGasolina, // Pemex
+    3: facturarGasolina, // Abimerhi
+    4: facturarGasolina, // La Gas
+    5: facturarGasolina, // G500
+    6: facturarGasolina, // FacturasGas
+};
+
 app.get('/status', (req, res) => {
-    res.json({ status: 'Robot Online', version: '1.0.0' });
+    res.json({
+        status: 'Robot Online',
+        version: '1.1.0',
+        robots_disponibles: Object.keys(robots).length
+    });
 });
 
 // Endpoint principal para facturación
 app.post('/facturar', async (req, res) => {
-    const { ticket, config } = req.body;
+    const { ticket, config, credenciales } = req.body;
 
-    console.log(`Iniciando facturación para: ${ticket.nombre} con el comercio ID: ${ticket.comercio}`);
+    console.log(`[${new Date().toLocaleTimeString()}] Solicitud para: ${ticket.nombre} (Comercio ID: ${ticket.comercio})`);
 
     try {
-        // Aquí es donde llamaremos a los robots específicos
-        // Por ahora devolvemos un éxito simulado para probar la conexión
-        setTimeout(() => {
-            res.json({
-                success: true,
-                message: 'Robot recibió el comando. Implementando lógica específica...',
-                datos: {
-                    metodo: 'Automatizado (Robot)',
-                    total: ticket.datos?.total || 'N/A'
-                }
+        const robot = robots[ticket.comercio];
+
+        if (!robot) {
+            return res.status(400).json({
+                success: false,
+                message: `El comercio ID ${ticket.comercio} aún no tiene un robot programado.`
             });
-        }, 2000);
+        }
+
+        // Ejecutar el robot
+        const resultado = await robot(ticket, config, credenciales);
+
+        res.json(resultado);
 
     } catch (error) {
-        console.error('Error en el robot:', error);
-        res.status(500).json({ success: false, message: error.message });
+        console.error('Error crítico en el robot:', error);
+        res.status(500).json({
+            success: false,
+            message: `Error interno en el robot: ${error.message}`
+        });
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`Servidor de automatización corriendo en puerto ${PORT}`);
+    console.log(`=========================================`);
+    console.log(`Servidor de automatización CORRIENDO`);
+    console.log(`Puerto: ${PORT}`);
+    console.log(`Estado: Online`);
+    console.log(`=========================================`);
 });
