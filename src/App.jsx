@@ -311,6 +311,7 @@ function FacturacionAutomatica() {
           : 'https://angelina-unrecuperated-lorilee.ngrok-free.dev';
 
         const response = await fetch(`${baseUrl}/status`, {
+          cache: 'no-store',
           headers: { 'ngrok-skip-browser-warning': 'true' }
         });
         if (response.ok) setServerStatus('online');
@@ -381,9 +382,19 @@ function FacturacionAutomatica() {
     if (fechaMatch) datos.fecha = fechaMatch[1];
 
     // Buscar Folio: Típico en tickets de gasolina o retail
-    const folioRegex = /(?:FOLIO|TICKET|TRANS|NOTA|VENTA).*?(\d+[A-Z\d]*)/i;
+    const folioRegex = /(?:FOLIO|TICKET|TRANS|NOTA|VENTA|F:).*?(\d+[A-Z\d]*)/i;
     const folioMatch = texto.match(folioRegex);
     if (folioMatch) datos.folio = folioMatch[1];
+
+    // Buscar WebID / Código de Facturación (Específico Abimerhi/G500/Pemex)
+    const webidRegex = /(?:WEBID|WEB ID|CLAVE|CODIGO FACT|FACTURACION|REF).*?([A-Z0-9-]{4,16})/i;
+    const webidMatch = texto.match(webidRegex);
+    if (webidMatch) datos.webid = webidMatch[1];
+
+    // Buscar Estación (E01234, PL/1234/EXP/ES/2015, etc)
+    const estacionRegex = /(?:ESTACION|E\.\s*S\.|ES|PERMISO|CRE).*?(E\d{4,6}|PL\/\d+\/EXP\/ES\/\d{4})/i;
+    const estacionMatch = texto.match(estacionRegex);
+    if (estacionMatch) datos.estacion = estacionMatch[1];
 
     return datos;
   };
@@ -400,8 +411,15 @@ function FacturacionAutomatica() {
     });
 
     try {
+      // Convertir archivo a DataURL para mayor compatibilidad en móviles
+      const reader = new FileReader();
+      const dataUrl = await new Promise((resolve) => {
+        reader.onload = (e) => resolve(e.target.result);
+        reader.readAsDataURL(archivo);
+      });
+
       // Usar Tesseract para leer la imagen
-      const result = await Tesseract.recognize(archivo, 'spa', {
+      const result = await Tesseract.recognize(dataUrl, 'spa', {
         workerBlobURL: false,
         logger: m => {
           if (m.status === 'recognizing text') {
@@ -424,20 +442,20 @@ function FacturacionAutomatica() {
           qrDetectado: false,
           datos: { ...datosOcr, rawText: textoExtraido },
           deteccionComercioStatus: 'detectado',
-          mensaje: `✓ ${comercioDetectado.nombre} detectado • Total: $${datosOcr.total || '?'}`
+          mensaje: `✓ ${comercioDetectado.nombre} • $${datosOcr.total || '?'}`
         });
       } else {
         actualizarTicket({
           deteccionComercioStatus: 'manual',
           datos: { ...datosOcr, rawText: textoExtraido },
-          mensaje: datosOcr.total ? `OCR: Total detectado $${datosOcr.total}` : 'Lectura completada. Seleccione comercio.'
+          mensaje: datosOcr.total ? `Total: $${datosOcr.total}` : 'Lectura OK. Elija comercio.'
         });
       }
 
     } catch (error) {
       console.error("Error en OCR:", error);
       actualizarTicket({
-        mensaje: 'Error al leer el ticket (OCR)',
+        mensaje: 'Error OCR. Intente de nuevo.',
         deteccionComercioStatus: 'manual'
       });
     }
@@ -653,7 +671,7 @@ function FacturacionAutomatica() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-6 overflow-x-hidden selection:bg-orange-200" style={{ backgroundColor: '#f5f5f5' }}>
+    <div className="min-h-screen bg-gray-50 p-2 sm:p-4 md:p-6 overflow-x-hidden" style={{ backgroundColor: '#f5f5f5' }}>
       {/* Modal de escaneo QR manual */}
       {escaneoQR && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -743,8 +761,11 @@ function FacturacionAutomatica() {
                   <h1 className="text-xl md:text-2xl font-bold text-white leading-tight">
                     Sistema de Facturación
                   </h1>
-                  <div className={`w-3 h-3 rounded-full shrink-0 ${serverStatus === 'online' ? 'bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.5)]' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-gray-400'} animate-pulse`}
-                    title={serverStatus === 'online' ? 'Robot Online' : 'Robot Offline'}></div>
+                  <button
+                    onClick={() => setServerStatus('checking')}
+                    className={`w-3 h-3 rounded-full shrink-0 ${serverStatus === 'online' ? 'bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.5)]' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-gray-400'} animate-pulse`}
+                    title="Refrescar conexión"
+                  ></button>
                 </div>
                 <p className="text-white/60 text-xs md:text-sm">Robot México • {serverStatus === 'online' ? 'Conexión Activa' : 'Sin conexión'}</p>
               </div>
@@ -877,19 +898,19 @@ function FacturacionAutomatica() {
               </div>
             </div>
 
-            {/* Card 3: Lista de Tickets (Fondo Blanco para legibilidad) */}
-            <div className="bg-white rounded-2xl shadow-xl p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                  <div className="w-2 h-8 bg-orange-500 rounded-full"></div>
+            {/* Card 3: Lista de Tickets */}
+            <div className="bg-white rounded-2xl shadow-xl p-3 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+                <h2 className="text-lg sm:text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <div className="w-1.5 h-6 bg-orange-500 rounded-full"></div>
                   Tickets Cargados ({tickets.length})
                 </h2>
                 {tickets.length > 0 && (
                   <button
                     onClick={() => setTickets([])}
-                    className="text-sm font-medium text-orange-600 hover:text-orange-700 flex items-center gap-1 bg-orange-50 px-3 py-2 rounded-lg transition-colors"
+                    className="text-[10px] sm:text-sm font-bold text-orange-600 hover:text-orange-700 flex items-center justify-center gap-1 bg-orange-50 px-2 py-1.5 rounded-lg transition-colors w-max"
                   >
-                    <Trash2 size={16} />
+                    <Trash2 size={14} />
                     Limpiar lista
                   </button>
                 )}
@@ -908,106 +929,125 @@ function FacturacionAutomatica() {
                   {tickets.map(ticket => (
                     <div
                       key={ticket.id}
-                      className={`group border-2 rounded-xl p-5 transition-all duration-300 ${ticketActual === ticket.id ? 'border-orange-500 bg-orange-50 shadow-md ring-4 ring-orange-500/10' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
+                      className={`group border-2 rounded-xl p-3 sm:p-5 transition-all duration-300 ${ticketActual === ticket.id ? 'border-orange-500 bg-orange-50 shadow-md ring-4 ring-orange-500/10' : 'border-gray-100 hover:border-gray-200 hover:bg-gray-50'
                         }`}
                     >
-                      <div className="flex items-start gap-5">
-                        <div className="p-3 bg-white rounded-lg shadow-sm">
+                      <div className="flex items-start gap-3 sm:gap-5">
+                        <div className="shrink-0 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
                           {getEstadoIcon(ticket.estado)}
                         </div>
 
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-3 mb-1">
-                            <h3 className="font-bold text-gray-900 truncate">{ticket.nombre}</h3>
-                            {ticket.usarCredenciales && (
-                              <span className="text-[10px] uppercase tracking-wider font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
-                                Cuenta Activa
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-500 mt-2">
-                            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 w-full">
-                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Comercio:</span>
-                              <select
-                                value={ticket.comercio || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value ? parseInt(e.target.value) : null;
-                                  setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, comercio: val, deteccionComercioStatus: val ? 'manual' : 'manual' } : t));
-                                }}
-                                className={`w-full sm:w-auto px-2 py-1.5 rounded-lg border text-xs font-bold focus:ring-2 focus:ring-orange-500 outline-none transition-all ${!ticket.comercio ? 'border-red-300 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-gray-700'}`}
-                              >
-                                <option value="">-- Seleccionar --</option>
-                                {comercios.map(c => (
-                                  <option key={c.id} value={c.id}>{c.nombre}</option>
-                                ))}
-                              </select>
-                            </div>
-
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <h3 className="font-bold text-gray-900 text-sm truncate">{ticket.nombre}</h3>
                             {ticket.datos?.total && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Monto:</span>
-                                <span className="font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded-md">${ticket.datos.total}</span>
-                              </div>
-                            )}
-
-                            {ticket.datos?.fecha && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Fecha:</span>
-                                <span className="text-gray-700">{ticket.datos.fecha}</span>
-                              </div>
-                            )}
-
-                            {ticket.intentos > 0 && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Intentos:</span>
-                                <span>{ticket.intentos}/3</span>
-                              </div>
+                              <span className="shrink-0 font-black text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded text-[11px]">
+                                ${ticket.datos.total}
+                              </span>
                             )}
                           </div>
+                          {ticket.usarCredenciales && (
+                            <span className="text-[10px] uppercase tracking-wider font-bold bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
+                              Cuenta Activa
+                            </span>
+                          )}
+                        </div>
 
-                          {ticket.mensaje && (
-                            <div className={`mt-3 text-[11px] md:text-sm font-bold flex items-center gap-1.5 p-2 rounded-lg break-words overflow-hidden ${ticket.estado === 'completado' ? 'text-green-700 bg-green-50 border border-green-100' :
-                              ticket.estado === 'fallido' ? 'text-red-700 bg-red-50 border border-red-100' :
-                                'text-blue-700 bg-blue-50 border border-blue-100'
-                              }`}>
-                              <span className="shrink-0">
-                                {ticket.estado === 'procesando' && <Clock size={14} className="animate-spin" />}
-                                {ticket.estado === 'completado' && <CheckCircle size={14} />}
-                                {ticket.estado === 'fallido' && <XCircle size={14} />}
-                              </span>
-                              <span className="truncate md:whitespace-normal">{ticket.mensaje}</span>
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-500 mt-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 w-full">
+                            <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Comercio:</span>
+                            <select
+                              value={ticket.comercio || ''}
+                              onChange={(e) => {
+                                const val = e.target.value ? parseInt(e.target.value) : null;
+                                setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, comercio: val, deteccionComercioStatus: val ? 'manual' : 'manual' } : t));
+                              }}
+                              className={`w-full sm:w-auto px-2 py-1.5 rounded-lg border text-xs font-bold focus:ring-2 focus:ring-orange-500 outline-none transition-all ${!ticket.comercio ? 'border-red-300 bg-red-50 text-red-700' : 'border-gray-200 bg-white text-gray-700'}`}
+                            >
+                              <option value="">-- Seleccionar --</option>
+                              {comercios.map(c => (
+                                <option key={c.id} value={c.id}>{c.nombre}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {ticket.datos?.total && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Monto:</span>
+                              <span className="font-bold text-gray-900 bg-gray-100 px-1.5 py-0.5 rounded text-xs">${ticket.datos.total}</span>
                             </div>
                           )}
 
-                          {ticket.evidencia && (
-                            <button
-                              onClick={() => setEvidenciaModal(ticket.evidencia)}
-                              className="mt-2 text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 transition-all active:scale-95"
-                            >
-                              <Camera size={14} />
-                              Ver Evidencia del Robot
-                            </button>
+                          {ticket.datos?.fecha && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Fecha:</span>
+                              <span className="text-gray-700 text-xs">{ticket.datos.fecha}</span>
+                            </div>
+                          )}
+
+                          {ticket.datos?.webid && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">WebID:</span>
+                              <span className="font-mono text-xs text-orange-700 bg-orange-50 px-1.5 rounded">{ticket.datos.webid}</span>
+                            </div>
+                          )}
+
+                          {ticket.datos?.estacion && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Estación:</span>
+                              <span className="text-xs text-blue-700">{ticket.datos.estacion}</span>
+                            </div>
+                          )}
+
+                          {ticket.intentos > 0 && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Intentos:</span>
+                              <span>{ticket.intentos}/3</span>
+                            </div>
                           )}
                         </div>
 
-                        <div className="flex items-center gap-2 self-center">
-                          {ticket.estado === 'fallido' && (
-                            <button
-                              onClick={() => procesarTicket(ticket)}
-                              className="p-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors"
-                              title="Reintentar"
-                            >
-                              <Play size={18} />
-                            </button>
-                          )}
+                        {ticket.mensaje && (
+                          <div className={`mt-3 text-[11px] md:text-sm font-bold flex items-center gap-1.5 p-2 rounded-lg break-words overflow-hidden ${ticket.estado === 'completado' ? 'text-green-700 bg-green-50 border border-green-100' :
+                            ticket.estado === 'fallido' ? 'text-red-700 bg-red-50 border border-red-100' :
+                              'text-blue-700 bg-blue-50 border border-blue-100'
+                            }`}>
+                            <span className="shrink-0">
+                              {ticket.estado === 'procesando' && <Clock size={14} className="animate-spin" />}
+                              {ticket.estado === 'completado' && <CheckCircle size={14} />}
+                              {ticket.estado === 'fallido' && <XCircle size={14} />}
+                            </span>
+                            <span className="truncate md:whitespace-normal">{ticket.mensaje}</span>
+                          </div>
+                        )}
+
+                        {ticket.evidencia && (
                           <button
-                            onClick={() => setTickets(prev => prev.filter(t => t.id !== ticket.id))}
-                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            onClick={() => setEvidenciaModal(ticket.evidencia)}
+                            className="mt-2 text-xs font-bold text-orange-600 hover:text-orange-700 flex items-center gap-1 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100 transition-all active:scale-95"
                           >
-                            <Trash2 size={18} />
+                            <Camera size={14} />
+                            Ver Evidencia del Robot
                           </button>
-                        </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 self-center">
+                        {ticket.estado === 'fallido' && (
+                          <button
+                            onClick={() => procesarTicket(ticket)}
+                            className="p-2 bg-yellow-100 text-yellow-700 rounded-lg hover:bg-yellow-200 transition-colors"
+                            title="Reintentar"
+                          >
+                            <Play size={18} />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setTickets(prev => prev.filter(t => t.id !== ticket.id))}
+                          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
                       </div>
                     </div>
                   ))}

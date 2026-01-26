@@ -40,25 +40,40 @@ async function facturarGasolina(ticket, config) {
 
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 
-        // Simulación de llenado de datos (paso a paso con logs)
+        // Lógica de llenado para Abimerhi / La Gas
         console.log(`Página cargada: ${url}`);
 
-        // Tomar captura de pantalla de evidencia
-        const screenshotPath = `evidencia_${ticket.id}.png`;
-        const screenshotBuffer = await page.screenshot({ fullPage: false });
-        // Convertir a base64 para enviarlo al frontend
-        const screenshotBase64 = screenshotBuffer.toString('base64');
+        if (ticket.comercio === 3 || ticket.comercio === 4) {
+            try {
+                const folio = ticket.datos?.folio;
+                const webid = ticket.datos?.webid;
 
-        // Aquí el robot "vería" los campos de Folio, WebID, etc.
-        // En una implementación final, usaríamos page.type('#folio', folio) etc.
+                if (folio) {
+                    const el = await page.$('input[name*="folio"], #folio, .folio');
+                    if (el) await el.type(folio, { delay: 50 });
+                }
+                if (webid) {
+                    const el = await page.$('input[name*="webid"], #webid, .webid, input[name*="referencia"]');
+                    if (el) await el.type(webid, { delay: 50 });
+                }
+                await new Promise(r => setTimeout(r, 1000));
+            } catch (e) {
+                console.log("Error al intentar llenar campos automáticos");
+            }
+        }
+
+        // Tomar captura de pantalla de evidencia
+        const screenshotBuffer = await page.screenshot({ fullPage: false });
+        const screenshotBase64 = screenshotBuffer.toString('base64');
 
         return {
             success: true,
-            message: 'Robot en Portal: Los datos han sido ingresados correctamente. En espera de confirmación final.',
+            message: 'Robot en Portal: Se han ingresado los datos disponibles. Revise la captura.',
             evidencia: `data:image/png;base64,${screenshotBase64}`,
             datos: {
-                folio: folio || 'Detectado',
-                fecha_ticket: fecha,
+                folio: ticket.datos?.folio || 'No detectado',
+                webid: ticket.datos?.webid || 'No detectado',
+                estacion: ticket.datos?.estacion || 'No detectado',
                 url_portal: url
             }
         };
