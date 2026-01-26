@@ -49,34 +49,52 @@ async function facturarGasolina(ticket, config) {
                 const webid = ticket.datos?.webid;
 
                 if (folio) {
-                    const el = await page.$('input[name*="folio"], #folio, .folio');
-                    if (el) await el.type(folio, { delay: 50 });
+                    const el = await page.$('input[name*="folio"], #folio, .folio, input[placeholder*="folio" i], input[placeholder*="ticket" i]');
+                    if (el) {
+                        await el.click({ clickCount: 3 });
+                        await el.press('Backspace');
+                        await el.type(folio, { delay: 50 });
+                    }
                 }
                 if (webid) {
-                    const el = await page.$('input[name*="webid"], #webid, .webid, input[name*="referencia"]');
-                    if (el) await el.type(webid, { delay: 50 });
+                    const el = await page.$('input[name*="webid"], #webid, .webid, input[name*="referencia"], input[placeholder*="webid" i], input[placeholder*="clave" i]');
+                    if (el) {
+                        await el.click({ clickCount: 3 });
+                        await el.press('Backspace');
+                        await el.type(webid, { delay: 50 });
+                    }
                 }
 
                 // Intentar presionar el botón de Continuar/Facturar para validar
-                const nextButtons = await page.$$('button, input[type="button"], input[type="submit"]');
+                const nextButtons = await page.$$('button, input[type="button"], input[type="submit"], a.btn');
+                let clicked = false;
                 for (const btn of nextButtons) {
-                    const txt = await page.evaluate(e => e.innerText || e.value, btn);
-                    if (/siguiente|continuar|consultar|facturar|enviar/i.test(txt)) {
+                    const txt = await page.evaluate(e => e.innerText || e.value || '', btn);
+                    if (/siguiente|continuar|consultar|facturar|enviar|buscar|validar/i.test(txt.trim())) {
                         await btn.click();
-                        console.log(`Botón presionado: ${txt}`);
-                        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 5000 }).catch(() => { });
+                        console.log(`Botón presionado: ${txt.trim()}`);
+                        clicked = true;
+                        await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 8000 }).catch(() => {
+                            console.log("Navegación lenta o no requerida...");
+                        });
                         break;
                     }
                 }
 
-                await new Promise(r => setTimeout(r, 2000));
+                if (!clicked) {
+                    // Intento desesperado: buscar por clase común o ID
+                    const primaryBtn = await page.$('.btn-primary, #btnSiguiente, .next');
+                    if (primaryBtn) await primaryBtn.click();
+                }
+
+                await new Promise(r => setTimeout(r, 3000));
             } catch (e) {
                 console.log("Aviso: No se pudo avanzar automáticamente (" + e.message + ")");
             }
         }
 
         // Tomar captura de pantalla de evidencia final
-        const screenshotBuffer = await page.screenshot({ fullPage: false });
+        const screenshotBuffer = await page.screenshot({ fullPage: false, type: 'jpeg', quality: 80 });
         const screenshotBase64 = screenshotBuffer.toString('base64');
 
         // Escanear la página final buscando palabras de éxito

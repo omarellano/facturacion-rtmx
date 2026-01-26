@@ -154,7 +154,8 @@ function FacturacionAutomatica() {
     },
     {
       id: 4,
-
+      nombre: 'La Gas',
+      url: 'https://lagas.com.mx/facturacion/',
       tipoAuth: 'opcional',
       soportaQR: true,
       campos: ['rfc', 'email', 'folio']
@@ -361,7 +362,6 @@ function FacturacionAutomatica() {
     };
 
     // Buscar RFC del EMISOR (el comercio) para identificación
-    // Patrón robusto para RFC Mexicano (Moral y Física)
     const rfcRegex = /([A-ZÑ&]{3,4}) ?(?:- ?)?(\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])) ?(?:- ?)?([A-Z\d]{2})([A\d])/i;
     const matches = texto.match(new RegExp(rfcRegex, 'gi'));
 
@@ -369,11 +369,19 @@ function FacturacionAutomatica() {
       datos.rfcsEncontrados = matches.map(m => m.replace(/[\s-]/g, '').toUpperCase());
     }
 
-    // Buscar Total: Flexibilidad extrema con caracteres intermedios
-    const totalRegex = /(?:TOTAL|IMPORTE|PAGO|NETO|PAGAR)[\s\S]{0,20}?\$?\s*([\d,]+\.\d{2})/i;
-    const totalMatch = texto.match(totalRegex);
-    if (totalMatch) {
-      datos.total = totalMatch[1].replace(/,/g, '');
+    // Buscar Total: Más patrones y flexibilidad
+    const totalPatterns = [
+      /(?:TOTAL|IMPORTE|PAGO|NETO|PAGAR|Monto Total)[\s\S]{0,30}?\$?\s*([\d,]+\.\d{2})/i,
+      /\$?\s*([\d,]+\.\d{2})\s*(?:MXN|PESOS)/i,
+      /Total\s*\$?\s*([\d,]+\.\d{2})/i
+    ];
+
+    for (const pattern of totalPatterns) {
+      const match = texto.match(pattern);
+      if (match) {
+        datos.total = match[1].replace(/,/g, '');
+        break;
+      }
     }
 
     // Buscar Fecha: DD/MM/YYYY, DD-MM-YY, etc.
@@ -381,15 +389,34 @@ function FacturacionAutomatica() {
     const fechaMatch = texto.match(fechaRegex);
     if (fechaMatch) datos.fecha = fechaMatch[1];
 
-    // Buscar Folio: Acepta variaciones y símbolos entre prefijo y valor
-    const folioRegex = /(?:FOLIO|TICKET|TRANS|NOTA|VENTA|F:|\bF\b)[\s\S]{0,15}?(\d+[A-Z\d-]*)/i;
-    const folioMatch = texto.match(folioRegex);
-    if (folioMatch) datos.folio = folioMatch[1];
+    // Buscar Folio/Ticket: Más específico para diferentes comercios
+    const folioPatterns = [
+      /(?:FOLIO|TICKET|TRANS|NOTA|VENTA|F:|\bF\b)[\s\S]{0,20}?([A-Z0-9-]{6,})/i,
+      /Referencia:?\s*([A-Z0-9-]{6,})/i,
+      /No\.?\s*Ticket:?\s*([0-9-]{6,})/i
+    ];
 
-    // Buscar WebID / Código de Facturación (Específico Abimerhi/G500/Pemex/LaGas)
-    const webidRegex = /(?:WEBID|WEB ID|CLAVE|CODIGO|FACTURACION|REF|REFERENCIA|ID)[\s\S]{0,15}?([A-Z0-9-]{4,20})/i;
-    const webidMatch = texto.match(webidRegex);
-    if (webidMatch) datos.webid = webidMatch[1];
+    for (const pattern of folioPatterns) {
+      const match = texto.match(pattern);
+      if (match) {
+        datos.folio = match[1];
+        break;
+      }
+    }
+
+    // Buscar WebID / Código de Facturación
+    const webidPatterns = [
+      /(?:WEBID|WEB ID|CLAVE|CODIGO|FACTURACION|REF|REFERENCIA|ID)[\s\S]{0,15}?([A-Z0-9-]{8,25})/i,
+      /Facturación\s+([A-Z0-9]{10,})/i
+    ];
+
+    for (const pattern of webidPatterns) {
+      const match = texto.match(pattern);
+      if (match) {
+        datos.webid = match[1];
+        break;
+      }
+    }
 
     // Buscar Estación (E01234, PL/1234/EXP/ES/2015, etc)
     const estacionRegex = /(?:ESTACION|E\.\s*S\.|ES|PERMISO|CRE|ES\.\d+)[\s\S]{0,15}?(E\d{4,6}|PL\/\d+\/EXP\/ES\/\d{4})/i;
@@ -537,6 +564,23 @@ function FacturacionAutomatica() {
       alert('Error al acceder a la cámara: ' + error.message);
       setEscaneoQR(false);
     }
+  };
+
+  // Helper para normalizar la fecha para el input type="date" (requiere YYYY-MM-DD)
+  const formatFechaParaInput = (fechaStr) => {
+    if (!fechaStr) return '';
+    // Si ya viene como YYYY-MM-DD
+    if (fechaStr.match(/^\d{4}-\d{2}-\d{2}$/)) return fechaStr;
+
+    // Si viene como DD/MM/YYYY o DD-MM-YYYY
+    const parts = fechaStr.split(/[\/-]/);
+    if (parts.length === 3) {
+      let [d, m, y] = parts;
+      if (d.length === 4) return `${d}-${m.padStart(2, '0')}-${y.padStart(2, '0')}`;
+      const anio = y.length === 2 ? `20${y}` : y;
+      return `${anio}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    return '';
   };
 
   const handleFileUpload = (e) => {
@@ -984,7 +1028,7 @@ function FacturacionAutomatica() {
 
                           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-4">
                             {/* Grid de Datos Editables (Optimizado para Móvil) */}
-                            <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-4 mt-6 p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 mt-6 p-4 bg-gray-50/50 rounded-2xl border border-gray-100">
                               <div className="flex flex-col gap-1.5">
                                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-1">Monto ($)</label>
                                 <input
@@ -997,11 +1041,22 @@ function FacturacionAutomatica() {
                               </div>
 
                               <div className="flex flex-col gap-1.5">
+                                <label className="text-[10px] font-black text-gray-700 uppercase tracking-widest pl-1">Folio / Ticket</label>
+                                <input
+                                  type="text"
+                                  value={ticket.datos?.folio || ''}
+                                  placeholder="Folio"
+                                  onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, folio: e.target.value } } : t))}
+                                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-bold shadow-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
+                                />
+                              </div>
+
+                              <div className="flex flex-col gap-1.5">
                                 <label className="text-[10px] font-black text-orange-400 uppercase tracking-widest pl-1">WebID / Referencia</label>
                                 <input
                                   type="text"
                                   value={ticket.datos?.webid || ''}
-                                  placeholder="Código de 8-16 dígitos"
+                                  placeholder="Código"
                                   onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, webid: e.target.value } } : t))}
                                   className="w-full px-4 py-3 bg-white border border-orange-100 rounded-xl text-sm font-mono font-bold text-orange-700 shadow-sm focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all"
                                 />
@@ -1019,14 +1074,16 @@ function FacturacionAutomatica() {
                               </div>
 
                               <div className="flex flex-col gap-1.5">
-                                <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest pl-1">Fecha Ticket</label>
-                                <input
-                                  type="text"
-                                  value={ticket.datos?.fecha || ''}
-                                  placeholder="DD/MM/AAAA"
-                                  onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, fecha: e.target.value } } : t))}
-                                  className="w-full px-4 py-3 bg-white border border-emerald-100 rounded-xl text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
-                                />
+                                <label className="text-[10px] font-black text-emerald-400 uppercase tracking-widest pl-1">Fecha (Clic para Calendario)</label>
+                                <div className="relative">
+                                  <input
+                                    type="date"
+                                    value={formatFechaParaInput(ticket.datos?.fecha)}
+                                    onClick={(e) => e.target.showPicker?.()}
+                                    onChange={(e) => setTickets(prev => prev.map(t => t.id === ticket.id ? { ...t, datos: { ...t.datos, fecha: e.target.value } } : t))}
+                                    className="w-full px-4 py-3 bg-white border border-emerald-100 rounded-xl text-sm font-medium text-gray-700 shadow-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all cursor-pointer"
+                                  />
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1074,15 +1131,16 @@ function FacturacionAutomatica() {
                           </button>
                         </div>
                       </div>
-                  ))}
                     </div>
-                  )}
+                  ))}
                 </div>
+              )}
+            </div>
           </>
         )}
-          </div>
-      </div >
-      );
+      </div>
+    </div >
+  );
 }
 
-      export default FacturacionAutomatica;
+export default FacturacionAutomatica;
