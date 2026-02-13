@@ -11,8 +11,32 @@ export function useTickets() {
   const [tickets, setTickets] = useState(() => {
     try {
       const stored = localStorage.getItem('tickets');
-      return stored ? JSON.parse(stored) : [];
+      if (!stored) return [];
+      const parsed = JSON.parse(stored);
+      if (!Array.isArray(parsed)) return [];
+      // Filtrar tickets corruptos y asegurar propiedades minimas
+      return parsed.filter(t => t && t.id).map(t => ({
+        id: t.id,
+        nombre: t.nombre || 'Sin nombre',
+        archivo: null,
+        imagenPreview: t.imagenPreview || null,
+        comercio: t.comercio || null,
+        comercioDetectado: t.comercioDetectado || null,
+        confianzaDeteccion: t.confianzaDeteccion || 0,
+        usarCredenciales: t.usarCredenciales || false,
+        estado: t.estado || 'pendiente',
+        intentos: t.intentos || 0,
+        ultimoIntento: t.ultimoIntento || null,
+        mensaje: t.mensaje || '',
+        datos: t.datos || {},
+        qrDetectado: t.qrDetectado || false,
+        qrData: t.qrData || null,
+        escaneoQRStatus: t.escaneoQRStatus || 'pendiente',
+        deteccionComercioStatus: t.deteccionComercioStatus || 'manual',
+        evidencia: t.evidencia || null
+      }));
     } catch {
+      localStorage.removeItem('tickets');
       return [];
     }
   });
