@@ -9,16 +9,77 @@ dotenv.config();
 
 const app = express();
 
-// Configuración de CORS robusta
+// CORS restringido a orígenes conocidos
+const allowedOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://127.0.0.1:5173',
+    /\.github\.io$/,
+    /\.ngrok-free\.app$/
+];
+
 app.use(cors({
-    origin: '*',
+    origin: (origin, callback) => {
+        // Permitir requests sin origin (como curl en desarrollo)
+        if (!origin) return callback(null, true);
+        const allowed = allowedOrigins.some(o =>
+            o instanceof RegExp ? o.test(origin) : o === origin
+        );
+        if (allowed) return callback(null, true);
+        callback(new Error('Origen no permitido por CORS'));
+    },
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'ngrok-skip-browser-warning']
+    allowedHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning']
 }));
 
-app.use(express.json({ limit: '50mb' })); // Aumentar límite para imágenes/evidencia
+app.use(express.json({ limit: '50mb' }));
 
 const PORT = process.env.PORT || 3001;
+const API_KEY = process.env.API_KEY;
+
+// Middleware de autenticación por API Key
+const autenticar = (req, res, next) => {
+    if (!API_KEY) {
+        console.warn('⚠️  API_KEY no configurada en .env - endpoint desprotegido');
+        return next();
+    }
+
+    const authHeader = req.headers.authorization;
+    if (!authHeader || authHeader !== `Bearer ${API_KEY}`) {
+        return res.status(401).json({
+            success: false,
+            message: 'No autorizado. Incluye el header Authorization: Bearer <API_KEY>'
+        });
+    }
+    next();
+};
+
+// Rate limiting básico por IP
+const requestCounts = new Map();
+const RATE_LIMIT_WINDOW = 60000; // 1 minuto
+const RATE_LIMIT_MAX = 10; // máximo 10 requests por minuto
+
+const rateLimiter = (req, res, next) => {
+    const ip = req.ip || req.connection.remoteAddress;
+    const now = Date.now();
+    const record = requestCounts.get(ip) || { count: 0, resetAt: now + RATE_LIMIT_WINDOW };
+
+    if (now > record.resetAt) {
+        record.count = 0;
+        record.resetAt = now + RATE_LIMIT_WINDOW;
+    }
+
+    record.count++;
+    requestCounts.set(ip, record);
+
+    if (record.count > RATE_LIMIT_MAX) {
+        return res.status(429).json({
+            success: false,
+            message: 'Demasiadas solicitudes. Espera un momento antes de reintentar.'
+        });
+    }
+    next();
+};
 
 // Registro de robots disponibles
 const robots = {
@@ -33,14 +94,30 @@ const robots = {
 app.get('/status', (req, res) => {
     res.json({
         status: 'Robot Online',
-        version: '1.2.0 (ngrok)',
-        robots_disponibles: Object.keys(robots).length
+        version: '2.0.0',
+        robots_disponibles: Object.keys(robots).length,
+        autenticacion: !!API_KEY
     });
 });
 
-// Endpoint principal para facturación
-app.post('/facturar', async (req, res) => {
+// Endpoint principal para facturación (protegido)
+app.post('/facturar', autenticar, rateLimiter, async (req, res) => {
     const { ticket, config, credenciales } = req.body;
+
+    // Validación de entrada
+    if (!ticket || !ticket.comercio) {
+        return res.status(400).json({
+            success: false,
+            message: 'Datos incompletos: se requiere ticket con comercio.'
+        });
+    }
+
+    if (!config || !config.rfc) {
+        return res.status(400).json({
+            success: false,
+            message: 'Datos incompletos: se requiere configuración fiscal (RFC).'
+        });
+    }
 
     console.log(`[${new Date().toLocaleTimeString()}] Solicitud para: ${ticket.nombre} (Comercio ID: ${ticket.comercio})`);
 
@@ -70,12 +147,11 @@ app.post('/facturar', async (req, res) => {
 
 app.listen(PORT, async () => {
     console.log(`=========================================`);
-    console.log(`Servidor de automatización CORRIENDO`);
+    console.log(`Servidor de automatización v2.0.0`);
     console.log(`Puerto: ${PORT}`);
+    console.log(`Autenticación: ${API_KEY ? 'ACTIVA' : '⚠️ DESACTIVADA'}`);
 
     try {
-        // Para usar ngrok necesitas un authtoken de ngrok.com (es gratis)
-        // Puedes ponerlo en el archivo .env como NGROK_AUTHTOKEN
         const session = await ngrok.forward({
             addr: PORT,
             authtoken: process.env.NGROK_AUTHTOKEN

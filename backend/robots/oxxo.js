@@ -1,77 +1,151 @@
 const puppeteer = require('puppeteer');
 
-/**
- * Robot para facturación en OXXO
- * @param {Object} ticket Datos del ticket (folio, total, etc)
- * @param {Object} config Datos fiscales (RFC, CP, etc)
- */
-async function facturarOXXO(ticket, config) {
-    const browser = await puppeteer.launch({
-        headless: "new",
-        args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
+const MAX_RETRIES = 2;
+const RETRY_DELAY = 3000;
 
-    const page = await browser.newPage();
-
-    try {
-        console.log("Navegando al portal de OXXO...");
-        await page.goto('https://www3.oxxo.com/facturacion', { waitUntil: 'networkidle2', timeout: 45000 });
-
-        // Intentar autollenado básico si los campos son detectables
+async function esperarYLlenar(page, selectores, valor, opciones = {}) {
+    const { delay = 50, limpiar = true } = opciones;
+    for (const selector of selectores) {
         try {
-            const { total, folio, fecha } = ticket.datos;
+            const el = await page.$(selector);
+            if (el) {
+                if (limpiar) {
+                    await el.click({ clickCount: 3 });
+                    await el.press('Backspace');
+                }
+                await el.type(valor, { delay });
+                console.log(`  Campo llenado con selector: ${selector}`);
+                return true;
+            }
+        } catch (e) {
+            continue;
+        }
+    }
+    return false;
+}
+
+async function clickBoton(page, textos) {
+    const buttons = await page.$$('button, input[type="button"], input[type="submit"], a.btn, [role="button"]');
+    for (const btn of buttons) {
+        const txt = await page.evaluate(e => (e.innerText || e.value || e.getAttribute('aria-label') || '').trim(), btn);
+        for (const texto of textos) {
+            if (txt.toLowerCase().includes(texto.toLowerCase())) {
+                await btn.click();
+                console.log(`  Boton presionado: "${txt}"`);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+async function facturarOXXO(ticket, config) {
+    let lastError = null;
+
+    for (let intento = 0; intento <= MAX_RETRIES; intento++) {
+        const browser = await puppeteer.launch({
+            headless: "new",
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        });
+
+        const page = await browser.newPage();
+        await page.setViewport({ width: 1280, height: 800 });
+
+        try {
+            if (intento > 0) {
+                console.log(`Reintento ${intento}/${MAX_RETRIES} para OXXO...`);
+                await new Promise(r => setTimeout(r, RETRY_DELAY * intento));
+            }
+
+            console.log("Navegando al portal de OXXO...");
+            await page.goto('https://www3.oxxo.com/facturacion', {
+                waitUntil: 'networkidle2',
+                timeout: 45000
+            });
+
+            const { total, folio } = ticket.datos;
             const { rfc } = config;
 
-            // OXXO suele tener un botón de "Comenzar" o similar primero
-            const startBtn = await page.$('button, .btn-primary, #btnFacturar');
-            if (startBtn) await startBtn.click();
+            // Buscar y clickear boton de inicio
+            await clickBoton(page, ['comenzar', 'iniciar', 'facturar', 'continuar']);
             await new Promise(r => setTimeout(r, 2000));
 
-            // Intentar llenar RFC
+            // Llenar RFC
             if (rfc) {
-                const rfcInput = await page.$('input[name*="rfc" i], #rfc, .rfc');
-                if (rfcInput) await rfcInput.type(rfc, { delay: 50 });
+                await esperarYLlenar(page, [
+                    'input[name*="rfc" i]',
+                    'input[id*="rfc" i]',
+                    'input[placeholder*="RFC" i]',
+                    'input[aria-label*="RFC" i]',
+                    '#rfc'
+                ], rfc);
             }
 
-            // Intentar llenar Datos del ticket
+            // Llenar Folio
             if (folio) {
-                const folioInput = await page.$('input[name*="folio" i], #ticket, #folio');
-                if (folioInput) await folioInput.type(folio, { delay: 50 });
+                await esperarYLlenar(page, [
+                    'input[name*="folio" i]',
+                    'input[name*="ticket" i]',
+                    'input[id*="folio" i]',
+                    'input[id*="ticket" i]',
+                    'input[placeholder*="folio" i]',
+                    'input[placeholder*="ticket" i]',
+                    'input[aria-label*="folio" i]'
+                ], folio);
             }
 
-            // Tomar captura de lo que se llenó
+            // Llenar total si existe campo
+            if (total) {
+                await esperarYLlenar(page, [
+                    'input[name*="total" i]',
+                    'input[name*="monto" i]',
+                    'input[id*="total" i]',
+                    'input[placeholder*="total" i]'
+                ], total);
+            }
+
             await new Promise(r => setTimeout(r, 1000));
-        } catch (e) {
-            console.log("Aviso: Interacción limitada en OXXO (" + e.message + ")");
+
+            // Intentar enviar
+            await clickBoton(page, ['facturar', 'generar', 'enviar', 'siguiente', 'continuar']);
+            await new Promise(r => setTimeout(r, 3000));
+
+            const screenshotBuffer = await page.screenshot({ fullPage: false, type: 'jpeg', quality: 80 });
+            const screenshotBase64 = screenshotBuffer.toString('base64');
+
+            const bodyText = await page.evaluate(() => document.body.innerText);
+            const exito = /éxito|completo|generada|descargar|enviada|folio fiscal/i.test(bodyText);
+            const error = /error|invalido|incorrecto|no encontrado/i.test(bodyText);
+
+            await browser.close();
+
+            return {
+                success: !error,
+                message: exito
+                    ? 'OXXO: Factura generada con exito.'
+                    : error
+                        ? `OXXO: El portal reporto un error. Verifique los datos.`
+                        : 'OXXO: Portal cargado y datos ingresados. Verifique la captura.',
+                evidencia: `data:image/jpeg;base64,${screenshotBase64}`,
+                datos: {
+                    folio: ticket.datos?.folio || 'N/A',
+                    status_portal: exito ? 'Factura generada' : 'Interaccion enviada'
+                }
+            };
+
+        } catch (error) {
+            lastError = error;
+            console.error(`Error en robot OXXO (intento ${intento + 1}):`, error.message);
+            await browser.close();
+
+            if (intento < MAX_RETRIES) continue;
         }
-
-        const screenshotBuffer = await page.screenshot({ fullPage: false, type: 'jpeg', quality: 80 });
-        const screenshotBase64 = screenshotBuffer.toString('base64');
-
-        const bodyText = await page.evaluate(() => document.body.innerText);
-        const exito = /éxito|completo|generada|descargar|enviada|folio fiscal/i.test(bodyText);
-
-        return {
-            success: true,
-            message: exito
-                ? '✓ OXXO: Factura generada con éxito.'
-                : 'OXXO: Portal cargado y datos ingresados. Verifique la captura.',
-            evidencia: `data:image/jpeg;base64,${screenshotBase64}`,
-            datos: {
-                folio: ticket.datos?.folio || 'N/A',
-                status_portal: 'Interacción enviada'
-            }
-        };
-
-    } catch (error) {
-        console.error("Error en robot OXXO:", error);
-        return {
-            success: false,
-            message: `Error en Portal OXXO: ${error.message}`
-        };
-    } finally {
-        await browser.close();
     }
+
+    return {
+        success: false,
+        message: `Error en Portal OXXO despues de ${MAX_RETRIES + 1} intentos: ${lastError?.message}`
+    };
 }
 
 module.exports = { facturarOXXO };
