@@ -158,8 +158,8 @@ app.listen(PORT, '0.0.0.0', async () => {
     console.log(`Frontend: ${distPath}`);
     console.log(`Autenticacion: ${API_KEY ? 'ACTIVA' : 'DESACTIVADA'}`);
 
-    // Ngrok solo si hay token configurado
-    if (process.env.NGROK_AUTHTOKEN) {
+    // Ngrok solo si hay token configurado y NO estamos en Railway
+    if (process.env.NGROK_AUTHTOKEN && !process.env.RAILWAY_ENVIRONMENT) {
         try {
             const ngrok = require('@ngrok/ngrok');
             const session = await ngrok.forward({
