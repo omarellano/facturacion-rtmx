@@ -48,7 +48,5 @@ COPY backend/ ./backend/
 # Copiar el build del frontend
 COPY --from=frontend-build /app/dist ./dist
 
-EXPOSE 3001
-
 WORKDIR /app/backend
 CMD ["node", "server.js"]
