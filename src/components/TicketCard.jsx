@@ -40,11 +40,14 @@ export default function TicketCard({
         <div className="lg:w-1/3 shrink-0 group/img relative">
           <div
             className="h-full min-h-[150px] lg:h-[280px] bg-gray-100 rounded-2xl border-2 border-gray-100 overflow-hidden shadow-inner flex items-center justify-center cursor-zoom-in"
-            onClick={() => ticket.archivo && onVerImagen(URL.createObjectURL(ticket.archivo))}
+            onClick={() => {
+              const src = ticket.archivo ? URL.createObjectURL(ticket.archivo) : ticket.imagenPreview;
+              if (src) onVerImagen(src);
+            }}
           >
-            {ticket.archivo ? (
+            {(ticket.archivo || ticket.imagenPreview) ? (
               <img
-                src={URL.createObjectURL(ticket.archivo)}
+                src={ticket.archivo ? URL.createObjectURL(ticket.archivo) : ticket.imagenPreview}
                 alt="Ticket"
                 className="w-full h-full object-contain hover:scale-110 transition-transform duration-500"
               />

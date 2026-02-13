@@ -1,13 +1,27 @@
-import { useState, useCallback } from 'react';
-import { useLocalStorage } from './useLocalStorage';
+import { useState, useCallback, useEffect } from 'react';
 import { procesarTicketImagen } from '../utils/ocr';
 import { getBackendUrl, getApiKey } from '../utils/helpers';
 
 /**
  * Hook central para gestionar el estado de tickets
+ * Nota: el campo `archivo` (File) no es serializable en JSON,
+ * se excluye al guardar en localStorage y se guarda como dataURL en `imagenPreview`.
  */
 export function useTickets() {
-  const [tickets, setTickets] = useLocalStorage('tickets', []);
+  const [tickets, setTickets] = useState(() => {
+    try {
+      const stored = localStorage.getItem('tickets');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  // Persistir en localStorage excluyendo el File object
+  useEffect(() => {
+    const ticketsParaGuardar = tickets.map(({ archivo, ...rest }) => rest);
+    localStorage.setItem('tickets', JSON.stringify(ticketsParaGuardar));
+  }, [tickets]);
   const [procesando, setProcesando] = useState(false);
   const [ticketActual, setTicketActual] = useState(null);
 
@@ -20,6 +34,7 @@ export function useTickets() {
       id: Date.now(),
       nombre: archivo.name,
       archivo: archivo,
+      imagenPreview: null,
       comercio: null,
       comercioDetectado: null,
       confianzaDeteccion: 0,
@@ -34,6 +49,15 @@ export function useTickets() {
       escaneoQRStatus: 'pendiente',
       deteccionComercioStatus: 'detectando'
     };
+
+    // Guardar preview como dataURL para persistencia
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setTickets(prev => prev.map(t =>
+        t.id === nuevoTicket.id ? { ...t, imagenPreview: e.target.result } : t
+      ));
+    };
+    reader.readAsDataURL(archivo);
 
     setTickets(prev => [...prev, nuevoTicket]);
 
