@@ -151,7 +151,7 @@ app.get('{*path}', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
 });
 
-app.listen(PORT, async () => {
+app.listen(PORT, '0.0.0.0', async () => {
     console.log(`=========================================`);
     console.log(`Servidor de facturacion v2.0.0`);
     console.log(`Puerto: ${PORT}`);
