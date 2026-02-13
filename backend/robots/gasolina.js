@@ -52,10 +52,14 @@ async function facturarGasolina(ticket, config) {
     const url = URLS_POR_COMERCIO[ticket.comercio] || 'https://facturacion.pemex.com';
 
     for (let intento = 0; intento <= MAX_RETRIES; intento++) {
-        const browser = await puppeteer.launch({
+        const launchOptions = {
             headless: "new",
-            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-        });
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
+        };
+        if (process.env.CHROME_PATH) {
+            launchOptions.executablePath = process.env.CHROME_PATH;
+        }
+        const browser = await puppeteer.launch(launchOptions);
 
         const page = await browser.newPage();
         await page.setViewport({ width: 1280, height: 800 });

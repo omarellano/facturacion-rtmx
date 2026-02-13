@@ -16,13 +16,24 @@ export function formatFechaParaInput(fechaStr) {
 }
 
 /**
- * Determina la URL del backend según el entorno
+ * Determina la URL del backend segun el entorno.
+ * En Railway, frontend y backend estan en el mismo dominio (rutas relativas).
+ * En desarrollo local, el backend corre en puerto 3001.
  */
 export function getBackendUrl() {
+  // Si hay URL custom configurada, usarla
+  const customUrl = localStorage.getItem('backendUrl');
+  if (customUrl) return customUrl;
+
   const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-  return isLocal
-    ? 'http://localhost:3001'
-    : (localStorage.getItem('backendUrl') || 'http://localhost:3001');
+
+  // En local con Vite dev server (puerto 5173), apuntar al backend en 3001
+  if (isLocal && window.location.port === '5173') {
+    return 'http://localhost:3001';
+  }
+
+  // En produccion (Railway) o local sirviendo desde Express: rutas relativas
+  return '';
 }
 
 /**
