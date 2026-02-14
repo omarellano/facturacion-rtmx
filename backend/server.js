@@ -35,7 +35,7 @@ app.use(cors({
 
 app.use(express.json({ limit: '50mb' }));
 
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.API_KEY;
 
 // Servir frontend estatico (build de Vite)
