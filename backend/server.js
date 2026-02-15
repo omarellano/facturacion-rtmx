@@ -4,6 +4,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const { facturarOXXO } = require('./robots/oxxo');
 const { facturarGasolina } = require('./robots/gasolina');
+const { facturarSteveMadden } = require('./robots/stevemadden');
 
 dotenv.config();
 
@@ -92,6 +93,7 @@ const robots = {
     4: facturarGasolina,
     5: facturarGasolina,
     6: facturarGasolina,
+    16: facturarSteveMadden,
 };
 
 app.get('/status', (req, res) => {

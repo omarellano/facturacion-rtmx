@@ -118,6 +118,14 @@ export const COMERCIOS_DEFAULT = [
     tipoAuth: 'ninguna',
     soportaQR: false,
     campos: ['rfc', 'email', 'fecha', 'total']
+  },
+  {
+    id: 16,
+    nombre: 'Steve Madden',
+    url: 'https://stevemadden.fiscalpop.com',
+    tipoAuth: 'ninguna',
+    soportaQR: true,
+    campos: ['rfc', 'email', 'folio', 'total']
   }
 ];
 
@@ -130,4 +138,5 @@ export const DETECCION_PATTERNS = [
   { keywords: ['g500', 'gasolinera g500', 'servicios g500'], comercioId: 5, nombre: 'G500' },
   { keywords: ['walmart', 'nueva wal mart', 'wal-mart', 'bodega aurrera'], rfc: 'NWM9709244W4', comercioId: 8, nombre: 'Walmart' },
   { keywords: ['chedraui', 'tiendas chedraui'], rfc: 'TCH850701RM1', comercioId: 9, nombre: 'Chedraui' },
+  { keywords: ['steve madden', 'stevemadden', 'fiscalpop', 'steve maden'], comercioId: 16, nombre: 'Steve Madden' },
 ];
