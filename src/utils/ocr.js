@@ -50,6 +50,7 @@ export function extraerDatosDeTexto(texto) {
     /(?:FOLIO|TICKET|TRANS|NOTA|VENTA|NO\.?T|F:|F\s|DOC|REF|REFERENCIA)[\s\S]{0,20}?\s*#?([A-Z0-9-]{4,20})/i,
     /TICKET\s*#?\s*(\d{4,15})/i,
     /FOLIO\s*:?\s*([A-Z0-9]{4,15})/i,
+    /\b(PR\d{6,10})\b/i,
     /\b([A-Z]{1,2}\d{4,10})\b/
   ];
 
