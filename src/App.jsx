@@ -278,6 +278,13 @@ function FacturacionAutomatica() {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
+  const reiniciarApp = () => {
+    if (window.confirm('¿Estás seguro de que quieres reiniciar la aplicación? Se borrarán todos los tickets y configuraciones.')) {
+      localStorage.clear();
+      window.location.reload();
+    }
+  };
+
 
 
 
@@ -302,16 +309,19 @@ function FacturacionAutomatica() {
   // Guardar datos con manejo de cuota (evitar QuotaExceededError)
   useEffect(() => {
     try {
-      localStorage.setItem('tickets', JSON.stringify(tickets));
+      const ticketsStr = JSON.stringify(tickets);
+      localStorage.setItem('tickets', ticketsStr);
     } catch (e) {
-      if (e.name === 'QuotaExceededError') {
-        console.warn("Storage lleno, eliminando evidencias antiguas para liberar espacio...");
-        // Fallback: Si el storage se llena, guardamos los tickets sin las imágenes de evidencia pesadas
+      if (e.name === 'QuotaExceededError' || e.code === 22) {
+        console.warn("Storage lleno, reduciendo datos para liberar espacio...");
+        // Estrategia 1: Eliminar evidencias pesadas
         const ticketsSinEvidencia = tickets.map(t => ({ ...t, evidencia: null }));
         try {
           localStorage.setItem('tickets', JSON.stringify(ticketsSinEvidencia));
         } catch (innerError) {
-          console.error("No se pudo guardar ni siquiera sin evidencia:", innerError);
+          // Estrategia 2: Quedarse solo con los últimos 5
+          console.error("No se pudo liberar suficiente espacio, recortando lista de tickets...");
+          localStorage.setItem('tickets', JSON.stringify(tickets.slice(-5)));
         }
       }
     }
@@ -1111,6 +1121,18 @@ function FacturacionAutomatica() {
                         />
                         <p className="text-[10px] text-white/30 mt-1">Este token se enviará en el header Authorization para saltar bloqueos de infraestructura.</p>
                       </div>
+                      <div className="md:col-span-2 flex justify-between items-center bg-red-500/10 p-4 rounded-xl border border-red-500/20 mt-4">
+                        <div>
+                          <p className="text-white font-bold text-sm">¿Errores técnicos?</p>
+                          <p className="text-white/60 text-xs text-left">Si la app se queda en blanco o marca error de cuota (Storage), usa esta opción.</p>
+                        </div>
+                        <button
+                          onClick={reiniciarApp}
+                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase rounded-lg transition-all active:scale-95 shadow-lg shadow-red-600/20 whitespace-nowrap"
+                        >
+                          Reiniciar Aplicación
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1374,8 +1396,18 @@ function FacturacionAutomatica() {
         )}
       </div>
       {/* Lector QR oculto para procesamiento de archivos */}
-      {/* Lector QR oculto - Aseguramos un tamaño mínimo para evitar clientWidth null */}
-      <div id="qr-reader-hidden" style={{ width: '1px', height: '1px', opacity: 0, position: 'absolute', pointerEvents: 'none' }}></div>
+      {/* Lector QR oculto - Aseguramos visibilidad mínima para evitar fallos de librerías */}
+      <div id="qr-reader-hidden" style={{
+        width: '100px',
+        height: '100px',
+        opacity: 0,
+        position: 'fixed',
+        top: '-500px',
+        left: '-500px',
+        zIndex: -1,
+        pointerEvents: 'none',
+        display: 'block'
+      }}></div>
     </div>
   );
 }
