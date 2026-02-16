@@ -299,17 +299,34 @@ function FacturacionAutomatica() {
     if (Object.keys(datosGuardados).length > 0) setDatosFacturacion(datosGuardados);
   }, []);
 
-  // Guardar datos
+  // Guardar datos con manejo de cuota (evitar QuotaExceededError)
   useEffect(() => {
-    localStorage.setItem('tickets', JSON.stringify(tickets));
+    try {
+      localStorage.setItem('tickets', JSON.stringify(tickets));
+    } catch (e) {
+      if (e.name === 'QuotaExceededError') {
+        console.warn("Storage lleno, eliminando evidencias antiguas para liberar espacio...");
+        // Fallback: Si el storage se llena, guardamos los tickets sin las imágenes de evidencia pesadas
+        const ticketsSinEvidencia = tickets.map(t => ({ ...t, evidencia: null }));
+        try {
+          localStorage.setItem('tickets', JSON.stringify(ticketsSinEvidencia));
+        } catch (innerError) {
+          console.error("No se pudo guardar ni siquiera sin evidencia:", innerError);
+        }
+      }
+    }
   }, [tickets]);
 
   useEffect(() => {
-    localStorage.setItem('credenciales', JSON.stringify(credenciales));
+    try {
+      localStorage.setItem('credenciales', JSON.stringify(credenciales));
+    } catch (e) { console.error("Error guardando credenciales", e); }
   }, [credenciales]);
 
   useEffect(() => {
-    localStorage.setItem('datosFacturacion', JSON.stringify(datosFacturacion));
+    try {
+      localStorage.setItem('datosFacturacion', JSON.stringify(datosFacturacion));
+    } catch (e) { console.error("Error guardando datos", e); }
   }, [datosFacturacion]);
 
   // Verificar conexión con el robot al cargar
@@ -522,52 +539,56 @@ function FacturacionAutomatica() {
     });
 
     // 2. INTENTAR LEER QR (Estrategia más fiable)
-    const html5QrCode = new Html5Qrcode("qr-reader-hidden");
     let qrDataFound = null;
+    let html5QrCode = null;
 
     try {
-      const qrResult = await html5QrCode.scanFile(archivo, false);
-      if (qrResult) {
-        console.log("QR Detectado:", qrResult);
+      const element = document.getElementById("qr-reader-hidden");
+      if (element) {
+        html5QrCode = new Html5Qrcode("qr-reader-hidden");
+        const qrResult = await html5QrCode.scanFile(archivo, false);
+        if (qrResult) {
+          console.log("QR Detectado:", qrResult);
 
-        // Intentar parsear como URL del SAT (CFDI)
-        if (qrResult.includes('verificacfdi') || qrResult.includes('sat.gob.mx')) {
-          try {
-            const url = new URL(qrResult);
-            const params = new URLSearchParams(url.search);
+          if (qrResult.includes('verificacfdi') || qrResult.includes('sat.gob.mx')) {
+            try {
+              const url = new URL(qrResult);
+              const params = new URLSearchParams(url.search);
+              qrDataFound = {
+                tipo: 'SAT',
+                url: qrResult,
+                uuid: params.get('id'),
+                rfcEmisor: params.get('re'),
+                rfcReceptor: params.get('rr'),
+                total: params.get('tt')
+              };
+            } catch (e) { }
+          }
+
+          if (!qrDataFound) {
+            const webidMatch = qrResult.match(/([A-Z0-9]{8,20})/i);
+            const estacionMatch = qrResult.match(/(E\d{4,6}|\d{5})/i);
+
             qrDataFound = {
-              tipo: 'SAT',
-              url: qrResult,
-              uuid: params.get('id'),
-              rfcEmisor: params.get('re'),
-              rfcReceptor: params.get('rr'),
-              total: params.get('tt')
+              tipo: 'GASOLINERA',
+              raw: qrResult,
+              webid: webidMatch ? webidMatch[1] : qrResult.replace(/\s/g, ''),
+              estacion: estacionMatch ? estacionMatch[1] : null
             };
-          } catch (e) { }
+          }
+          actualizarTicket({ mensaje: '✓ QR detectado! Extrayendo datos...' });
         }
-
-        // Si no es URL del SAT, extraer datos de gasolinera
-        if (!qrDataFound) {
-          const webidMatch = qrResult.match(/([A-Z0-9]{8,20})/i);
-          const estacionMatch = qrResult.match(/(E\d{4,6}|\d{5})/i);
-
-          qrDataFound = {
-            tipo: 'GASOLINERA',
-            raw: qrResult,
-            webid: webidMatch ? webidMatch[1] : qrResult.replace(/\s/g, ''),
-            estacion: estacionMatch ? estacionMatch[1] : null
-          };
-        }
-        actualizarTicket({ mensaje: '✓ QR detectado! Extrayendo datos...' });
       }
     } catch (qrError) {
       console.log("No se encontró QR legible, usando OCR...", qrError.message);
     } finally {
-      try { await html5QrCode.clear(); } catch (e) { }
+      if (html5QrCode) {
+        try { await html5QrCode.clear(); } catch (e) { }
+      }
     }
 
     try {
-      // 3. OPTIMIZAR Y PRE-PROCESAR IMAGEN (Redimensionar para evitar bloqueos)
+      // 3. OPTIMIZAR IMAGEN (Redimensionar para evitar bloqueos)
       const { dataUrl: optimizedDataUrl, width, height } = await optimizarImagen(archivo);
 
       const processedDataUrl = await new Promise((resolve) => {
@@ -577,8 +598,6 @@ function FacturacionAutomatica() {
           const ctx = canvas.getContext('2d');
           canvas.width = width;
           canvas.height = height;
-
-          // Filtros para mejorar la lectura de texto (Grayscale + Contraste)
           ctx.filter = 'contrast(1.4) brightness(1.1) grayscale(1)';
           ctx.drawImage(img, 0, 0, width, height);
           resolve(canvas.toDataURL('image/jpeg', 0.9));
@@ -586,7 +605,7 @@ function FacturacionAutomatica() {
         img.src = optimizedDataUrl;
       });
 
-      // 4. OCR CON TESSERACT USANDO IMAGEN MEJORADA
+      // 4. OCR CON TESSERACT
       const result = await Tesseract.recognize(processedDataUrl, 'spa', {
         workerBlobURL: false,
         logger: m => {
@@ -599,7 +618,6 @@ function FacturacionAutomatica() {
       const textoExtraido = result.data.text;
       const datosOcr = extraerDatosDeTexto(textoExtraido);
 
-      // Combinar datos del QR (si existen) con el OCR - Priorizar QR
       const datosFinales = {
         ...datosOcr,
         total: qrDataFound?.total || datosOcr.total,
@@ -609,7 +627,6 @@ function FacturacionAutomatica() {
         rfc: qrDataFound?.rfcEmisor || datosOcr.rfc
       };
 
-      // Detección del comercio
       const comercioDetectado = detectarComercioPorImagen(textoExtraido, datosFinales);
 
       if (comercioDetectado.comercioId || qrDataFound) {
@@ -630,7 +647,6 @@ function FacturacionAutomatica() {
           mensaje: datosFinales.total ? `Total: $${datosFinales.total}` : 'Datos listos para verificar.'
         });
       }
-
     } catch (error) {
       console.error("Error en procesamiento:", error);
       actualizarTicket({
@@ -1358,7 +1374,8 @@ function FacturacionAutomatica() {
         )}
       </div>
       {/* Lector QR oculto para procesamiento de archivos */}
-      <div id="qr-reader-hidden" style={{ display: 'none' }}></div>
+      {/* Lector QR oculto - Aseguramos un tamaño mínimo para evitar clientWidth null */}
+      <div id="qr-reader-hidden" style={{ width: '1px', height: '1px', opacity: 0, position: 'absolute', pointerEvents: 'none' }}></div>
     </div>
   );
 }
