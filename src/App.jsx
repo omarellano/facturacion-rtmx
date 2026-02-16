@@ -814,15 +814,26 @@ function FacturacionAutomatica() {
         })
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Error en el servidor de automatización');
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        console.error("Respuesta no JSON recibida:", text);
+        throw new Error(`El servidor respondió de forma inesperada (Código: ${response.status}). Posible saturación.`);
       }
 
-      return await response.json();
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Error en el servidor de automatización');
+      }
+
+      return data;
     } catch (error) {
       console.error("Error conectando con el backend:", error);
-      throw new Error(`Servidor Offline: El robot no está disponible en internet (${error.message})`);
+      if (error.message.includes("Unexpected end of JSON input")) {
+        throw new Error("El robot tardó demasiado en responder y la conexión se cerró. Intente de nuevo.");
+      }
+      throw new Error(error.message);
     }
   };
 
