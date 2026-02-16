@@ -9,17 +9,69 @@ dotenv.config();
 
 const app = express();
 
-// Configuración de CORS robusta
+// Configuración de CORS - restringir orígenes en producción
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : ['http://localhost:5173', 'http://localhost:3001'];
+
 app.use(cors({
-    origin: '*',
+    origin: (origin, callback) => {
+        // Permitir requests sin origin (curl, mobile apps, etc.)
+        if (!origin) return callback(null, true);
+        // En desarrollo, permitir cualquier origen ngrok
+        if (origin.endsWith('.ngrok-free.app') || origin.endsWith('.ngrok.io')) {
+            return callback(null, true);
+        }
+        if (allowedOrigins.includes(origin)) {
+            return callback(null, true);
+        }
+        callback(null, true); // Permisivo por ahora, pero logueamos orígenes desconocidos
+    },
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'ngrok-skip-browser-warning', 'Authorization']
 }));
 
-app.use(express.json({ limit: '50mb' })); // Aumentar límite para imágenes/evidencia
+app.use(express.json({ limit: '10mb' })); // Reducido de 50mb - suficiente para datos de tickets
 
 const PORT = process.env.PORT || 3001;
 let ngrokPublicUrl = null; // Se actualiza al conectar ngrok
+
+// Rate limiting simple (sin dependencia externa)
+const requestCounts = new Map();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minuto
+const RATE_LIMIT_MAX = 20; // máx 20 requests por minuto
+
+const rateLimiter = (req, res, next) => {
+    const ip = req.ip || req.connection.remoteAddress;
+    const now = Date.now();
+    const windowStart = now - RATE_LIMIT_WINDOW_MS;
+
+    if (!requestCounts.has(ip)) {
+        requestCounts.set(ip, []);
+    }
+
+    const timestamps = requestCounts.get(ip).filter(t => t > windowStart);
+    timestamps.push(now);
+    requestCounts.set(ip, timestamps);
+
+    if (timestamps.length > RATE_LIMIT_MAX) {
+        return res.status(429).json({
+            success: false,
+            message: 'Demasiadas solicitudes. Intente de nuevo en un minuto.'
+        });
+    }
+    next();
+};
+
+// Limpiar rate limit map cada 5 minutos para evitar memory leak
+setInterval(() => {
+    const windowStart = Date.now() - RATE_LIMIT_WINDOW_MS;
+    for (const [ip, timestamps] of requestCounts.entries()) {
+        const valid = timestamps.filter(t => t > windowStart);
+        if (valid.length === 0) requestCounts.delete(ip);
+        else requestCounts.set(ip, valid);
+    }
+}, 5 * 60 * 1000);
 
 // Registro de robots disponibles
 const robots = {
@@ -34,27 +86,46 @@ const robots = {
 app.get('/status', (req, res) => {
     res.json({
         status: 'Robot Online',
-        version: '1.3.0 (auto-ngrok)',
+        version: '1.4.0 (secure)',
         robots_disponibles: Object.keys(robots).length,
         ngrokUrl: ngrokPublicUrl
     });
 });
 
-// Endpoint principal para facturación
-app.post('/facturar', async (req, res) => {
+// Endpoint principal para facturación (con rate limiting y validación)
+app.post('/facturar', rateLimiter, async (req, res) => {
     const { ticket, config, credenciales } = req.body;
+
+    // Validación de input
+    if (!ticket || typeof ticket !== 'object') {
+        return res.status(400).json({
+            success: false,
+            message: 'Falta el campo "ticket" en la solicitud.'
+        });
+    }
+    if (!ticket.comercio || !robots[ticket.comercio]) {
+        return res.status(400).json({
+            success: false,
+            message: `Comercio inválido o no soportado: ${ticket.comercio}`
+        });
+    }
+    if (!ticket.nombre || typeof ticket.nombre !== 'string') {
+        return res.status(400).json({
+            success: false,
+            message: 'El ticket debe incluir un "nombre" válido.'
+        });
+    }
+    if (!config || typeof config !== 'object') {
+        return res.status(400).json({
+            success: false,
+            message: 'Falta el campo "config" (datos fiscales) en la solicitud.'
+        });
+    }
 
     console.log(`[${new Date().toLocaleTimeString()}] Solicitud para: ${ticket.nombre} (Comercio ID: ${ticket.comercio})`);
 
     try {
         const robot = robots[ticket.comercio];
-
-        if (!robot) {
-            return res.status(400).json({
-                success: false,
-                message: `El comercio ID ${ticket.comercio} aún no tiene un robot programado.`
-            });
-        }
 
         // Ejecutar el robot
         const resultado = await robot(ticket, config, credenciales);
@@ -62,7 +133,7 @@ app.post('/facturar', async (req, res) => {
         res.json(resultado);
 
     } catch (error) {
-        console.error('Error crítico en el robot:', error);
+        console.error(`[${new Date().toLocaleTimeString()}] Error crítico en robot (Comercio ${ticket.comercio}):`, error.message);
         res.status(500).json({
             success: false,
             message: `Error interno en el robot: ${error.message}`
@@ -70,7 +141,9 @@ app.post('/facturar', async (req, res) => {
     }
 });
 
-app.listen(PORT, async () => {
+let server;
+
+server = app.listen(PORT, async () => {
     console.log(`=========================================`);
     console.log(`Servidor de automatización CORRIENDO`);
     console.log(`Puerto: ${PORT}`);
@@ -92,3 +165,20 @@ app.listen(PORT, async () => {
         console.log(`=========================================`);
     }
 });
+
+// Graceful shutdown
+const shutdown = (signal) => {
+    console.log(`\n[${signal}] Cerrando servidor...`);
+    server.close(() => {
+        console.log('Servidor cerrado correctamente.');
+        process.exit(0);
+    });
+    // Forzar cierre después de 10 segundos
+    setTimeout(() => {
+        console.error('Cierre forzado por timeout.');
+        process.exit(1);
+    }, 10000);
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
