@@ -310,7 +310,7 @@ function FacturacionAutomatica() {
         const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         const baseUrl = import.meta.env.VITE_API_URL || (isLocal
           ? 'http://localhost:3001'
-          : 'https://angelina-unrecuperated-lorilee.ngrok-free.dev');
+          : ''); // En Railway, si el frontend y backend están en el mismo dominio o se usa proxy, se puede dejar vacío o usar la URL de la API.
 
         const response = await fetch(`${baseUrl}/status`, {
           cache: 'no-store',
@@ -397,9 +397,10 @@ function FacturacionAutomatica() {
 
     // 4. Folio / Ticket (Muy agresivo para Pemex/Oxxo/etc)
     const folioPatterns = [
-      /(?:FOLIO|TICKET|TRANS|NOTA|VENTA|NO\.?T|F:|F\s|DOC|REF|REFERENCIA)[\s\S]{0,20}?\s*#?([A-Z0-9-]{4,20})/i,
+      /(?:FOLIO|TICKET|TRANS|NOTA|VENTA|NO\.?T|F:|F\s|DOC|REF|REFERENCIA|RASTREO)[\s\S]{0,20}?\s*#?([A-Z0-9-]{4,20})/i,
       /TICKET\s*#?\s*(\d{4,15})/i,
       /FOLIO\s*:?\s*([A-Z0-9]{4,15})/i,
+      /RASTREO\s*:?\s*([A-Z0-9-]{10,25})/i,
       /\b([A-Z]{1,2}\d{4,10})\b/
     ];
 
@@ -432,6 +433,12 @@ function FacturacionAutomatica() {
           break;
         }
       }
+    }
+
+    // 5.1 Búsqueda específica de RASTREO si no hay webid (Común en La Gas/FacturasGas)
+    if (!datos.webid) {
+      const rastreoMatch = textoLimpio.match(/RASTREO\s*:?\s*([0-9-]{10,25})/i);
+      if (rastreoMatch) datos.webid = rastreoMatch[1];
     }
 
     // 6. Estación (Pemex E01234 o CRE)
@@ -598,8 +605,9 @@ function FacturacionAutomatica() {
       { keywords: ['oxxo', 'cadena comercial oxxo'], rfc: 'CCO8605231N4', comercioId: 1, nombre: 'OXXO' },
       { keywords: ['pemex', 'combustibles', 'gasolinera', 'e.s.'], rfc: 'PME380607P14', comercioId: 2, nombre: 'Pemex' },
       { keywords: ['abimerhi', 'estacionamiento', 'servicios abimerhi', 'gasolinera abimerhi', 'f02379'], comercioId: 3, nombre: 'Abimerhi' },
-      { keywords: ['lagas', 'la gas', 'corporativo de servicios', 'servifacil'], comercioId: 4, nombre: 'La Gas' },
+      { keywords: ['lagas', 'la gas', 'corporativo de servicios', 'servifacil', 'buque de vela'], rfc: 'EVE190821NP9', comercioId: 4, nombre: 'La Gas' },
       { keywords: ['g500', 'gasolinera g500', 'servicios g500'], comercioId: 5, nombre: 'G500' },
+      { keywords: ['facturasgas', 'facturacion gas'], comercioId: 6, nombre: 'FacturasGas' },
       { keywords: ['walmart', 'nueva wal mart', 'wal-mart', 'bodega aurrera'], rfc: 'NWM9709244W4', comercioId: 8, nombre: 'Walmart' },
       { keywords: ['chedraui', 'tiendas chedraui'], rfc: 'TCH850701RM1', comercioId: 9, nombre: 'Chedraui' },
     ];
@@ -697,7 +705,7 @@ function FacturacionAutomatica() {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const baseUrl = import.meta.env.VITE_API_URL || (isLocal
       ? 'http://localhost:3001'
-      : 'https://angelina-unrecuperated-lorilee.ngrok-free.dev');
+      : '');
 
     const backendUrl = `${baseUrl}/facturar`;
 
