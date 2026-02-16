@@ -19,6 +19,7 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' })); // Aumentar límite para imágenes/evidencia
 
 const PORT = process.env.PORT || 3001;
+let ngrokPublicUrl = null; // Se actualiza al conectar ngrok
 
 // Registro de robots disponibles
 const robots = {
@@ -33,8 +34,9 @@ const robots = {
 app.get('/status', (req, res) => {
     res.json({
         status: 'Robot Online',
-        version: '1.2.0 (ngrok)',
-        robots_disponibles: Object.keys(robots).length
+        version: '1.3.0 (auto-ngrok)',
+        robots_disponibles: Object.keys(robots).length,
+        ngrokUrl: ngrokPublicUrl
     });
 });
 
@@ -80,8 +82,9 @@ app.listen(PORT, async () => {
             addr: PORT,
             authtoken: process.env.NGROK_AUTHTOKEN
         });
+        ngrokPublicUrl = session.url();
         console.log(`Acceso Remoto ACTIVO`);
-        console.log(`URL Pública: ${session.url()}`);
+        console.log(`URL Pública: ${ngrokPublicUrl}`);
         console.log(`=========================================`);
     } catch (err) {
         console.error("No se pudo iniciar ngrok:", err.message);

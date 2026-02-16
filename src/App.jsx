@@ -310,29 +310,39 @@ function FacturacionAutomatica() {
     localStorage.setItem('ngrokUrl', ngrokUrl);
   }, [ngrokUrl]);
 
-  // Verificar conexión con el robot al cargar
+  // Obtener la URL base del backend
+  const getBackendBaseUrl = () => {
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    return isLocal ? 'http://localhost:3001' : (ngrokUrl || 'http://localhost:3001');
+  };
+
+  // Verificar conexión con el robot al cargar + auto-detectar URL de ngrok
   useEffect(() => {
     const checkStatus = async () => {
+      const baseUrl = getBackendBaseUrl();
       try {
-        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const baseUrl = isLocal
-          ? 'http://localhost:3001'
-          : (ngrokUrl || 'http://localhost:3001');
-
         const response = await fetch(`${baseUrl}/status`, {
           cache: 'no-store',
           headers: { 'ngrok-skip-browser-warning': 'true' }
         });
-        if (response.ok) setServerStatus('online');
-        else setServerStatus('offline');
+        if (response.ok) {
+          setServerStatus('online');
+          const data = await response.json();
+          // Auto-guardar la URL de ngrok si el servidor la reporta
+          if (data.ngrokUrl && data.ngrokUrl !== ngrokUrl) {
+            setNgrokUrl(data.ngrokUrl);
+          }
+        } else {
+          setServerStatus('offline');
+        }
       } catch (e) {
         setServerStatus('offline');
       }
     };
     checkStatus();
-    const interval = setInterval(checkStatus, 30000); // Re-check cada 30 segundos
+    const interval = setInterval(checkStatus, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [ngrokUrl]);
 
   const agregarTicket = (archivo) => {
     const nuevoTicket = {
@@ -701,10 +711,7 @@ function FacturacionAutomatica() {
 
   const enviarAlRobot = async (ticket) => {
     // Si estamos en localhost usar puerto directo, si no usar tunel ngrok
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const backendUrl = isLocal
-      ? 'http://localhost:3001/facturar'
-      : `${ngrokUrl || 'http://localhost:3001'}/facturar`;
+    const backendUrl = `${getBackendBaseUrl()}/facturar`;
 
     try {
       const response = await fetch(backendUrl, {
