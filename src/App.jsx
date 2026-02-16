@@ -989,7 +989,7 @@ function FacturacionAutomatica() {
                 {/* Configuración (si está abierta) */}
                 {mostrarConfig && (
                   <div className="bg-white/5 backdrop-blur-md p-6 rounded-xl border border-white/10 animate-in fade-in zoom-in duration-300">
-                    <h2 className="text-xl font-semibold text-white mb-4">Configuración de Emisor</h2>
+                    <h2 className="text-xl font-semibold text-white mb-4">Datos del Receptor (Tus Datos Fiscales)</h2>
                     <div className="grid grid-cols-2 gap-4 mb-6">
                       <div>
                         <label className="block text-xs font-medium text-white/50 uppercase mb-1">RFC</label>
