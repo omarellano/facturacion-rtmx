@@ -11,8 +11,8 @@ async function facturarSteveMadden(ticket, config) {
     await page.setViewport({ width: 1280, height: 800 });
 
     try {
-        console.log(`Iniciando robot para Steve Madden...`);
-        let url = 'https://stevemadden.com.mx/pages/facturacion';
+        console.log(`Iniciando robot para Steve Madden (Trendy Imports)...`);
+        let url = 'https://facturacion.trendyimports.com.mx/';
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
 
         // Intentar detectar si hay un enlace directo que diga "Facturación" o similar

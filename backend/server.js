@@ -17,9 +17,25 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'ngrok-skip-browser-warning', 'Authorization']
 }));
 
-app.use(express.json({ limit: '50mb' })); // Aumentar límite para imágenes/evidencia
+app.use(express.json({ limit: '50mb' }));
 
 const PORT = process.env.PORT || 3001;
+const API_KEY = process.env.API_KEY || 'SECRET_KEY_PROD'; // Clave por defecto si no hay env
+
+// Middleware de Autenticación
+const authMiddleware = (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+
+    if (!token || token !== API_KEY) {
+        console.warn(`[${new Date().toLocaleTimeString()}] Intento de acceso no autorizado desde: ${req.ip}`);
+        return res.status(401).json({
+            success: false,
+            message: 'No autorizado. Verifique su API Key en la configuración del frontend.'
+        });
+    }
+    next();
+};
 
 // Registro de robots disponibles
 const robots = {
@@ -35,13 +51,14 @@ const robots = {
 app.get('/status', (req, res) => {
     res.json({
         status: 'Robot Online',
-        version: '1.3.0 (Cloud)',
-        robots_disponibles: Object.keys(robots).length
+        version: '2.1.0 (Sync PROD)',
+        robots_disponibles: Object.keys(robots).length,
+        autenticacion: true
     });
 });
 
-// Endpoint principal para facturación
-app.post('/facturar', async (req, res) => {
+// Endpoint principal para facturación (Protegido)
+app.post('/facturar', authMiddleware, async (req, res) => {
     const { ticket, config, credenciales } = req.body;
 
     console.log(`[${new Date().toLocaleTimeString()}] Solicitud para: ${ticket.nombre} (Comercio ID: ${ticket.comercio})`);

@@ -275,7 +275,8 @@ function FacturacionAutomatica() {
   const [mostrarConfig, setMostrarConfig] = useState(false);
   const [escaneoQR, setEscaneoQR] = useState(false);
   const [evidenciaModal, setEvidenciaModal] = useState(null);
-  const [serverStatus, setServerStatus] = useState('checking'); // checking, online, offline
+  const [serverStatus, setServerStatus] = useState('offline'); // online, offline, checking
+  const [backendInfo, setBackendInfo] = useState({ version: '?', robots: 0 });
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -361,8 +362,13 @@ function FacturacionAutomatica() {
             'Authorization': datosFacturacion.apiKey ? `Bearer ${datosFacturacion.apiKey}` : ''
           }
         });
-        if (response.ok) setServerStatus('online');
-        else setServerStatus('offline');
+        if (response.ok) {
+          const data = await response.json();
+          setBackendInfo({ version: data.version, robots: data.robots_disponibles });
+          setServerStatus('online');
+        } else {
+          setServerStatus('offline');
+        }
       } catch (e) {
         setServerStatus('offline');
       }
@@ -1015,7 +1021,9 @@ function FacturacionAutomatica() {
                     title="Refrescar conexión"
                   ></button>
                 </div>
-                <p className="text-white/60 text-xs md:text-sm">Robot México • {serverStatus === 'online' ? 'Conexión Activa' : 'Sin conexión'}</p>
+                <p className="text-white/60 text-xs md:text-sm">
+                  Robot México • {serverStatus === 'online' ? `v${backendInfo.version} Activa` : 'Robot Offline'}
+                </p>
               </div>
             </div>
             <div className="flex items-center justify-center gap-3 w-full md:w-auto">

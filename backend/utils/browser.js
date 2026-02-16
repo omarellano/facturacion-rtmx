@@ -6,6 +6,7 @@ const puppeteer = require('puppeteer');
 async function getBrowser() {
     return await puppeteer.launch({
         headless: true,
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || null, // Permitir override en Railway
         args: [
             '--no-sandbox',
             '--disable-setuid-sandbox',
@@ -13,8 +14,9 @@ async function getBrowser() {
             '--disable-accelerated-2d-canvas',
             '--no-first-run',
             '--no-zygote',
-            '--single-process', // Útil en entornos con poca RAM como Railway Starter
-            '--disable-gpu'
+            '--single-process',
+            '--disable-gpu',
+            '--font-render-hinting=none', // Evitar problemas de fuentes en Linux
         ]
     });
 }
