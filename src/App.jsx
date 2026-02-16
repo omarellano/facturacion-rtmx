@@ -266,6 +266,7 @@ function FacturacionAutomatica() {
   const [escaneoQR, setEscaneoQR] = useState(false);
   const [evidenciaModal, setEvidenciaModal] = useState(null);
   const [serverStatus, setServerStatus] = useState('checking'); // checking, online, offline
+  const [ngrokUrl, setNgrokUrl] = useState('');
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -288,6 +289,8 @@ function FacturacionAutomatica() {
     if (ticketsGuardados.length > 0) setTickets(ticketsGuardados);
     if (Object.keys(credsGuardadas).length > 0) setCredenciales(credsGuardadas);
     if (Object.keys(datosGuardados).length > 0) setDatosFacturacion(datosGuardados);
+    const urlGuardada = localStorage.getItem('ngrokUrl') || '';
+    if (urlGuardada) setNgrokUrl(urlGuardada);
   }, []);
 
   // Guardar datos
@@ -303,6 +306,10 @@ function FacturacionAutomatica() {
     localStorage.setItem('datosFacturacion', JSON.stringify(datosFacturacion));
   }, [datosFacturacion]);
 
+  useEffect(() => {
+    localStorage.setItem('ngrokUrl', ngrokUrl);
+  }, [ngrokUrl]);
+
   // Verificar conexión con el robot al cargar
   useEffect(() => {
     const checkStatus = async () => {
@@ -310,7 +317,7 @@ function FacturacionAutomatica() {
         const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
         const baseUrl = isLocal
           ? 'http://localhost:3001'
-          : 'https://angelina-unrecuperated-lorilee.ngrok-free.dev';
+          : (ngrokUrl || 'http://localhost:3001');
 
         const response = await fetch(`${baseUrl}/status`, {
           cache: 'no-store',
@@ -697,7 +704,7 @@ function FacturacionAutomatica() {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     const backendUrl = isLocal
       ? 'http://localhost:3001/facturar'
-      : 'https://angelina-unrecuperated-lorilee.ngrok-free.dev/facturar';
+      : `${ngrokUrl || 'http://localhost:3001'}/facturar`;
 
     try {
       const response = await fetch(backendUrl, {
@@ -978,6 +985,17 @@ function FacturacionAutomatica() {
                 {mostrarConfig && (
                   <div className="bg-white/5 backdrop-blur-md p-6 rounded-xl border border-white/10 animate-in fade-in zoom-in duration-300">
                     <h2 className="text-xl font-semibold text-white mb-4">Configuración de Emisor</h2>
+                    <div className="mb-4">
+                      <label className="block text-xs font-medium text-white/50 uppercase mb-1">URL del Robot (ngrok)</label>
+                      <input
+                        type="text"
+                        placeholder="https://tu-url.ngrok-free.dev"
+                        value={ngrokUrl}
+                        onChange={(e) => setNgrokUrl(e.target.value.replace(/\/+$/, ''))}
+                        className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                      />
+                      <p className="text-white/30 text-[10px] mt-1">Pega aquí la URL que muestra el servidor al iniciar. Se guarda automáticamente.</p>
+                    </div>
                     <div className="grid grid-cols-2 gap-4 mb-6">
                       <div>
                         <label className="block text-xs font-medium text-white/50 uppercase mb-1">RFC</label>
