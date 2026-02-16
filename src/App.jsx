@@ -257,7 +257,8 @@ function FacturacionAutomatica() {
     razonSocial: 'OMAR ESTEBAN ARELLANO GODINEZ',
     email: 'rotulatemx@gmail.com',
     codigoPostal: '77536',
-    regimenFiscal: '626'
+    regimenFiscal: '626',
+    apiKey: ''
   });
 
   const [procesando, setProcesando] = useState(false);
@@ -714,7 +715,8 @@ function FacturacionAutomatica() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
+          'ngrok-skip-browser-warning': 'true',
+          'Authorization': datosFacturacion.apiKey ? `Bearer ${datosFacturacion.apiKey}` : ''
         },
         body: JSON.stringify({
           ticket: {
@@ -1024,6 +1026,17 @@ function FacturacionAutomatica() {
                           onChange={(e) => setDatosFacturacion({ ...datosFacturacion, codigoPostal: e.target.value })}
                           className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-orange-500 outline-none"
                         />
+                      </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-white/50 uppercase mb-1">API Key (Railway/Proxy)</label>
+                        <input
+                          type="password"
+                          placeholder="Ingresa tu token de autorización"
+                          value={datosFacturacion.apiKey || ''}
+                          onChange={(e) => setDatosFacturacion({ ...datosFacturacion, apiKey: e.target.value })}
+                          className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-orange-500 outline-none font-mono"
+                        />
+                        <p className="text-[10px] text-white/30 mt-1">Este token se enviará en el header Authorization para saltar bloqueos de infraestructura.</p>
                       </div>
                     </div>
                   </div>
