@@ -4,6 +4,7 @@ const dotenv = require('dotenv');
 const ngrok = require('@ngrok/ngrok');
 const { facturarOXXO } = require('./robots/oxxo');
 const { facturarGasolina } = require('./robots/gasolina');
+const { facturarSteveMadden } = require('./robots/stevemadden');
 
 dotenv.config();
 
@@ -28,6 +29,7 @@ const robots = {
     4: facturarGasolina, // La Gas
     5: facturarGasolina, // G500
     6: facturarGasolina, // FacturasGas
+    16: facturarSteveMadden, // Steve Madden
 };
 
 app.get('/status', (req, res) => {

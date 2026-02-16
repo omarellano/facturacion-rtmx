@@ -234,7 +234,7 @@ function FacturacionAutomatica() {
       campos: ['rfc', 'email', 'ticket', 'total', 'sucursal']
     },
     {
-      id: 14,
+      id: 15,
       nombre: 'AutoZone',
       url: 'https://www.autozone.com.mx/facturacion',
       tipoAuth: 'ninguna',
@@ -242,7 +242,15 @@ function FacturacionAutomatica() {
       campos: ['rfc', 'email', 'ticket', 'total', 'sucursal']
     },
     {
-      id: 15,
+      id: 16,
+      nombre: 'Steve Madden',
+      url: 'https://stevemadden.com.mx/pages/facturacion',
+      tipoAuth: 'ninguna',
+      soportaQR: false,
+      campos: ['rfc', 'email', 'folio', 'total']
+    },
+    {
+      id: 17,
       nombre: 'Tlapalería/Ferretería',
       url: 'https://facturacion.ejemplo.com',
       tipoAuth: 'ninguna',
@@ -398,7 +406,8 @@ function FacturacionAutomatica() {
 
     // 4. Folio / Ticket (Muy agresivo para Pemex/Oxxo/etc)
     const folioPatterns = [
-      /(?:FOLIO|TICKET|TRANS|NOTA|VENTA|NO\.?T|F:|F\s|DOC|REF|REFERENCIA|RASTREO)[\s\S]{0,20}?\s*#?([A-Z0-9-]{4,20})/i,
+      /(?:FOLIO|TICKET|TRANS|NOTA|VENTA|NO\.?T|F:|F\s|DOC|REF|REFERENCIA|RASTREO|TRANSACCION)[\s\S]{0,20}?\s*#?([A-Z0-9-]{4,20})/i,
+      /PRO\s*(\d+[A-Z0-9-]*)/i,
       /TICKET\s*#?\s*(\d{4,15})/i,
       /FOLIO\s*:?\s*([A-Z0-9]{4,15})/i,
       /RASTREO\s*:?\s*([A-Z0-9-]{10,25})/i,
@@ -611,6 +620,7 @@ function FacturacionAutomatica() {
       { keywords: ['facturasgas', 'facturacion gas'], comercioId: 6, nombre: 'FacturasGas' },
       { keywords: ['walmart', 'nueva wal mart', 'wal-mart', 'bodega aurrera'], rfc: 'NWM9709244W4', comercioId: 8, nombre: 'Walmart' },
       { keywords: ['chedraui', 'tiendas chedraui'], rfc: 'TCH850701RM1', comercioId: 9, nombre: 'Chedraui' },
+      { keywords: ['steve madden', 'trendy imports'], rfc: 'TIM050307ST4', comercioId: 16, nombre: 'Steve Madden' },
     ];
 
     // 1. Intentar identificar por RFC
@@ -1026,6 +1036,22 @@ function FacturacionAutomatica() {
                           onChange={(e) => setDatosFacturacion({ ...datosFacturacion, codigoPostal: e.target.value })}
                           className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-orange-500 outline-none"
                         />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-white/50 uppercase mb-1">Régimen Fiscal (RESICO=626)</label>
+                        <select
+                          value={datosFacturacion.regimenFiscal}
+                          onChange={(e) => setDatosFacturacion({ ...datosFacturacion, regimenFiscal: e.target.value })}
+                          className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                        >
+                          <option value="601" className="bg-slate-800">General de Ley Personas Morales</option>
+                          <option value="603" className="bg-slate-800">Personas Morales con Fines no Lucrativos</option>
+                          <option value="605" className="bg-slate-800">Sueldos y Salarios e Ingresos Asimilados a Salarios</option>
+                          <option value="606" className="bg-slate-800">Arrendamiento</option>
+                          <option value="612" className="bg-slate-800">Personas Físicas con Actividades Empresariales y Profesionales</option>
+                          <option value="621" className="bg-slate-800">Incorporación Fiscal</option>
+                          <option value="626" className="bg-slate-800">Régimen Simplificado de Confianza (RESICO)</option>
+                        </select>
                       </div>
                       <div className="md:col-span-2">
                         <label className="block text-xs font-medium text-white/50 uppercase mb-1">API Key (Railway/Proxy)</label>
