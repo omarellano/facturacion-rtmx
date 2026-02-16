@@ -469,6 +469,47 @@ function FacturacionAutomatica() {
     return datos;
   };
 
+  const optimizarImagen = async (archivo, maxWidth = 1200) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Calcular nuevas dimensiones manteniendo aspecto
+          if (width > height) {
+            if (width > maxWidth) {
+              height *= maxWidth / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxWidth) {
+              width *= maxWidth / height;
+              height = maxWidth;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Retornar tanto el DataURL para OCR como el Blob para previsualización ligera
+          resolve({
+            dataUrl: canvas.toDataURL('image/jpeg', 0.8),
+            width,
+            height
+          });
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(archivo);
+    });
+  };
+
   const detectarQRYComercio = async (archivo, ticketId) => {
     const actualizarTicket = (cambios) => {
       setTickets(prev => prev.map(t => t.id === ticketId ? { ...t, ...cambios } : t));
@@ -480,78 +521,69 @@ function FacturacionAutomatica() {
       mensaje: 'Buscando QR y leyendo datos...'
     });
 
+    // 2. INTENTAR LEER QR (Estrategia más fiable)
+    const html5QrCode = new Html5Qrcode("qr-reader-hidden");
+    let qrDataFound = null;
+
     try {
-      // 1. CARGAR IMAGEN EN CANVAS PARA PRE-PROCESAMIENTO
-      const reader = new FileReader();
-      const originalDataUrl = await new Promise((resolve) => {
-        reader.onload = (e) => resolve(e.target.result);
-        reader.readAsDataURL(archivo);
-      });
+      const qrResult = await html5QrCode.scanFile(archivo, false);
+      if (qrResult) {
+        console.log("QR Detectado:", qrResult);
 
-      // 2. INTENTAR LEER QR (Estrategia más fiable)
-      const html5QrCode = new Html5Qrcode("qr-reader-hidden");
-      let qrDataFound = null;
-
-      try {
-        const qrResult = await html5QrCode.scanFile(archivo, false);
-        if (qrResult) {
-          console.log("QR Detectado:", qrResult);
-
-          // Intentar parsear como URL del SAT (CFDI)
-          if (qrResult.includes('verificacfdi') || qrResult.includes('sat.gob.mx')) {
-            try {
-              const url = new URL(qrResult);
-              const params = new URLSearchParams(url.search);
-              qrDataFound = {
-                tipo: 'SAT',
-                url: qrResult,
-                uuid: params.get('id'),
-                rfcEmisor: params.get('re'),
-                rfcReceptor: params.get('rr'),
-                total: params.get('tt')
-              };
-            } catch (e) { }
-          }
-
-          // Si no es URL del SAT, extraer datos de gasolinera
-          if (!qrDataFound) {
-            // Los QR de gasolineras suelen contener el WebID directamente
-            // Formato común: números de 8-15 dígitos o alfanuméricos
-            const webidMatch = qrResult.match(/([A-Z0-9]{8,20})/i);
-            const estacionMatch = qrResult.match(/(E\d{4,6}|\d{5})/i);
-
+        // Intentar parsear como URL del SAT (CFDI)
+        if (qrResult.includes('verificacfdi') || qrResult.includes('sat.gob.mx')) {
+          try {
+            const url = new URL(qrResult);
+            const params = new URLSearchParams(url.search);
             qrDataFound = {
-              tipo: 'GASOLINERA',
-              raw: qrResult,
-              webid: webidMatch ? webidMatch[1] : qrResult.replace(/\s/g, ''),
-              estacion: estacionMatch ? estacionMatch[1] : null
+              tipo: 'SAT',
+              url: qrResult,
+              uuid: params.get('id'),
+              rfcEmisor: params.get('re'),
+              rfcReceptor: params.get('rr'),
+              total: params.get('tt')
             };
-            console.log("QR de gasolinera parseado:", qrDataFound);
-          }
-
-          actualizarTicket({ mensaje: '✓ QR detectado! Extrayendo datos...' });
+          } catch (e) { }
         }
-      } catch (qrError) {
-        console.log("No se encontró QR legible, usando OCR...", qrError.message);
-      } finally {
-        await html5QrCode.clear();
-      }
 
-      // 3. PRE-PROCESAR IMAGEN PARA OCR (Mejorar contraste/nitidez)
+        // Si no es URL del SAT, extraer datos de gasolinera
+        if (!qrDataFound) {
+          const webidMatch = qrResult.match(/([A-Z0-9]{8,20})/i);
+          const estacionMatch = qrResult.match(/(E\d{4,6}|\d{5})/i);
+
+          qrDataFound = {
+            tipo: 'GASOLINERA',
+            raw: qrResult,
+            webid: webidMatch ? webidMatch[1] : qrResult.replace(/\s/g, ''),
+            estacion: estacionMatch ? estacionMatch[1] : null
+          };
+        }
+        actualizarTicket({ mensaje: '✓ QR detectado! Extrayendo datos...' });
+      }
+    } catch (qrError) {
+      console.log("No se encontró QR legible, usando OCR...", qrError.message);
+    } finally {
+      try { await html5QrCode.clear(); } catch (e) { }
+    }
+
+    try {
+      // 3. OPTIMIZAR Y PRE-PROCESAR IMAGEN (Redimensionar para evitar bloqueos)
+      const { dataUrl: optimizedDataUrl, width, height } = await optimizarImagen(archivo);
+
       const processedDataUrl = await new Promise((resolve) => {
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          canvas.width = img.width;
-          canvas.height = img.height;
+          canvas.width = width;
+          canvas.height = height;
 
           // Filtros para mejorar la lectura de texto (Grayscale + Contraste)
           ctx.filter = 'contrast(1.4) brightness(1.1) grayscale(1)';
-          ctx.drawImage(img, 0, 0);
+          ctx.drawImage(img, 0, 0, width, height);
           resolve(canvas.toDataURL('image/jpeg', 0.9));
         };
-        img.src = originalDataUrl;
+        img.src = optimizedDataUrl;
       });
 
       // 4. OCR CON TESSERACT USANDO IMAGEN MEJORADA
@@ -601,7 +633,6 @@ function FacturacionAutomatica() {
 
     } catch (error) {
       console.error("Error en procesamiento:", error);
-      // fallback final si todo falla pero la imagen cargó
       actualizarTicket({
         mensaje: 'Lectura con dificultades. Revise campos.',
         deteccionComercioStatus: 'manual'
