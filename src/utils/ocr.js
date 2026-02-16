@@ -214,7 +214,6 @@ export async function procesarTicketImagen(archivo, onProgress) {
   const processedDataUrl = await preprocesarImagen(originalDataUrl);
 
   const result = await Tesseract.recognize(processedDataUrl, 'spa', {
-    workerBlobURL: false,
     logger: m => {
       if (m.status === 'recognizing text') {
         onProgress?.(`Analizando ticket: ${Math.floor(m.progress * 100)}%`);
