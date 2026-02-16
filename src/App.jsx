@@ -350,10 +350,7 @@ function FacturacionAutomatica() {
           ? 'http://localhost:3001'
           : '');
 
-        if (!baseUrl && !isLocal) {
-          setServerStatus('offline');
-          return;
-        }
+        // No bloqueamos sibaseUrl es vacío, ya que significa misma procedencia (same-origin)
 
         const response = await fetch(`${baseUrl}/status`, {
           cache: 'no-store',

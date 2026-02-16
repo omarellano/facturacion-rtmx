@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
+const path = require('path');
 const ngrok = require('@ngrok/ngrok');
 const { facturarOXXO } = require('./robots/oxxo');
 const { facturarGasolina } = require('./robots/gasolina');
@@ -18,6 +19,9 @@ app.use(cors({
 }));
 
 app.use(express.json({ limit: '50mb' }));
+
+// Servir archivos estáticos del frontend (dist)
+app.use(express.static(path.join(__dirname, '../dist')));
 
 const PORT = process.env.PORT || 3001;
 const API_KEY = process.env.API_KEY || 'SECRET_KEY_PROD'; // Clave por defecto si no hay env
@@ -85,6 +89,11 @@ app.post('/facturar', authMiddleware, async (req, res) => {
             message: `Error interno en el robot: ${error.message}`
         });
     }
+});
+
+// Ruta comodín para SPA (React) - Debe ir al final de las rutas de la API
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../dist', 'index.html'));
 });
 
 app.listen(PORT, async () => {
