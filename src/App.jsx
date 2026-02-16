@@ -266,7 +266,8 @@ function FacturacionAutomatica() {
     email: 'rotulatemx@gmail.com',
     codigoPostal: '77536',
     regimenFiscal: '626',
-    apiKey: ''
+    apiKey: '',
+    apiUrl: ''
   });
 
   const [procesando, setProcesando] = useState(false);
@@ -344,13 +345,21 @@ function FacturacionAutomatica() {
     const checkStatus = async () => {
       try {
         const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-        const baseUrl = import.meta.env.VITE_API_URL || (isLocal
+        const baseUrl = datosFacturacion.apiUrl || import.meta.env.VITE_API_URL || (isLocal
           ? 'http://localhost:3001'
-          : ''); // En Railway, si el frontend y backend están en el mismo dominio o se usa proxy, se puede dejar vacío o usar la URL de la API.
+          : '');
+
+        if (!baseUrl && !isLocal) {
+          setServerStatus('offline');
+          return;
+        }
 
         const response = await fetch(`${baseUrl}/status`, {
           cache: 'no-store',
-          headers: { 'ngrok-skip-browser-warning': 'true' }
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+            'Authorization': datosFacturacion.apiKey ? `Bearer ${datosFacturacion.apiKey}` : ''
+          }
         });
         if (response.ok) setServerStatus('online');
         else setServerStatus('offline');
@@ -769,13 +778,14 @@ function FacturacionAutomatica() {
   };
 
   const enviarAlRobot = async (ticket) => {
-    // Si estamos en localhost usar puerto directo, si no usar tunel ngrok
+    // Orden de prioridad: 1. Input manual, 2. Env variable, 3. Localhost (si es local), 4. Same origin
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    const baseUrl = import.meta.env.VITE_API_URL || (isLocal
+    const baseUrl = datosFacturacion.apiUrl || import.meta.env.VITE_API_URL || (isLocal
       ? 'http://localhost:3001'
       : '');
 
     const backendUrl = `${baseUrl}/facturar`;
+    console.log("Intentando conectar con:", backendUrl);
 
     try {
       const response = await fetch(backendUrl, {
@@ -1121,16 +1131,27 @@ function FacturacionAutomatica() {
                         />
                         <p className="text-[10px] text-white/30 mt-1">Este token se enviará en el header Authorization para saltar bloqueos de infraestructura.</p>
                       </div>
-                      <div className="md:col-span-2 flex justify-between items-center bg-red-500/10 p-4 rounded-xl border border-red-500/20 mt-4">
+                      <div className="md:col-span-2">
+                        <label className="block text-xs font-medium text-white/50 uppercase mb-1">URL de la API (Backend)</label>
+                        <input
+                          type="text"
+                          placeholder="https://tu-backend.up.railway.app"
+                          value={datosFacturacion.apiUrl || ''}
+                          onChange={(e) => setDatosFacturacion({ ...datosFacturacion, apiUrl: e.target.value })}
+                          className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-orange-500 outline-none font-mono text-sm"
+                        />
+                        <p className="text-[10px] text-white/30 mt-1">Si dejas esto en blanco, se usará la URL configurada por defecto o el mismo servidor.</p>
+                      </div>
+                      <div className="md:col-span-2 flex justify-between items-center bg-red-600/20 p-4 rounded-xl border border-red-500/40 mt-4 ring-2 ring-red-500/10">
                         <div>
-                          <p className="text-white font-bold text-sm">¿Errores técnicos?</p>
-                          <p className="text-white/60 text-xs text-left">Si la app se queda en blanco o marca error de cuota (Storage), usa esta opción.</p>
+                          <p className="text-red-400 font-bold text-sm">¿Errores técnicos?</p>
+                          <p className="text-white/60 text-[10px] text-left">Si la app se queda en blanco, marca error de cuota o quieres limpiar todo.</p>
                         </div>
                         <button
                           onClick={reiniciarApp}
-                          className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase rounded-lg transition-all active:scale-95 shadow-lg shadow-red-600/20 whitespace-nowrap"
+                          className="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white text-xs font-black uppercase rounded-lg transition-all active:scale-95 shadow-xl shadow-red-900/40 border border-red-400/50"
                         >
-                          Reiniciar Aplicación
+                          LIMPIAR Y REINICIAR APP
                         </button>
                       </div>
                     </div>
