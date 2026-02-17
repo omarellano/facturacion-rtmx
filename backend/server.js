@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const ngrok = require('@ngrok/ngrok');
 const { facturarOXXO } = require('./robots/oxxo');
 const { facturarGasolina } = require('./robots/gasolina');
 
@@ -16,25 +15,23 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Permitir requests sin origin (curl, mobile apps, etc.)
         if (!origin) return callback(null, true);
-        // En desarrollo, permitir cualquier origen ngrok
-        if (origin.endsWith('.ngrok-free.app') || origin.endsWith('.ngrok.io')) {
+        // Permitir túneles de Cloudflare (trycloudflare.com)
+        if (origin.endsWith('.trycloudflare.com')) {
             return callback(null, true);
         }
         if (allowedOrigins.includes(origin)) {
             return callback(null, true);
         }
-        callback(null, true); // Permisivo por ahora, pero logueamos orígenes desconocidos
+        callback(null, true);
     },
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'ngrok-skip-browser-warning', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-app.use(express.json({ limit: '10mb' })); // Reducido de 50mb - suficiente para datos de tickets
+app.use(express.json({ limit: '10mb' }));
 
 const PORT = process.env.PORT || 3001;
-let ngrokPublicUrl = null; // Se actualiza al conectar ngrok
 
 // Rate limiting simple (sin dependencia externa)
 const requestCounts = new Map();
@@ -86,9 +83,8 @@ const robots = {
 app.get('/status', (req, res) => {
     res.json({
         status: 'Robot Online',
-        version: '1.4.0 (secure)',
-        robots_disponibles: Object.keys(robots).length,
-        ngrokUrl: ngrokPublicUrl
+        version: '1.5.0',
+        robots_disponibles: Object.keys(robots).length
     });
 });
 
@@ -143,27 +139,15 @@ app.post('/facturar', rateLimiter, async (req, res) => {
 
 let server;
 
-server = app.listen(PORT, async () => {
+server = app.listen(PORT, () => {
     console.log(`=========================================`);
     console.log(`Servidor de automatización CORRIENDO`);
     console.log(`Puerto: ${PORT}`);
-
-    try {
-        // Para usar ngrok necesitas un authtoken de ngrok.com (es gratis)
-        // Puedes ponerlo en el archivo .env como NGROK_AUTHTOKEN
-        const session = await ngrok.forward({
-            addr: PORT,
-            authtoken: process.env.NGROK_AUTHTOKEN
-        });
-        ngrokPublicUrl = session.url();
-        console.log(`Acceso Remoto ACTIVO`);
-        console.log(`URL Pública: ${ngrokPublicUrl}`);
-        console.log(`=========================================`);
-    } catch (err) {
-        console.error("No se pudo iniciar ngrok:", err.message);
-        console.log(`Estado: Solo Local (Puerto ${PORT})`);
-        console.log(`=========================================`);
-    }
+    console.log(`Local: http://localhost:${PORT}`);
+    console.log(`-----------------------------------------`);
+    console.log(`Para acceso remoto ejecuta en otra terminal:`);
+    console.log(`  cloudflared tunnel --url http://localhost:${PORT}`);
+    console.log(`=========================================`);
 });
 
 // Graceful shutdown

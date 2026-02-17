@@ -37,8 +37,8 @@ const DashboardEstadisticas = ({ tickets, comercios }) => {
           <p className="text-2xl md:text-3xl font-bold text-gray-900">
             ${totalGastado.toLocaleString('es-MX', { minimumFractionDigits: 2 })}
           </p>
-          <div className="mt-2 flex items-center text-sm text-green-600">
-            <span>+12.5% vs mes anterior</span>
+          <div className="mt-2 flex items-center text-sm text-gray-500">
+            <span>{ticketsCompletados.length} tickets facturados</span>
           </div>
         </div>
         <div className="bg-white p-4 md:p-6 rounded-xl shadow-sm border border-gray-100">
@@ -266,18 +266,9 @@ function FacturacionAutomatica() {
   const [escaneoQR, setEscaneoQR] = useState(false);
   const [evidenciaModal, setEvidenciaModal] = useState(null);
   const [serverStatus, setServerStatus] = useState('checking'); // checking, online, offline
-  const [ngrokUrl, setNgrokUrl] = useState('');
+  const [tunnelUrl, setTunnelUrl] = useState('');
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
-
-
-
-
-
-
-
-
-
 
 
   // Cargar datos guardados
@@ -289,8 +280,8 @@ function FacturacionAutomatica() {
     if (ticketsGuardados.length > 0) setTickets(ticketsGuardados);
     if (Object.keys(credsGuardadas).length > 0) setCredenciales(credsGuardadas);
     if (Object.keys(datosGuardados).length > 0) setDatosFacturacion(datosGuardados);
-    const urlGuardada = localStorage.getItem('ngrokUrl') || '';
-    if (urlGuardada) setNgrokUrl(urlGuardada);
+    const urlGuardada = localStorage.getItem('tunnelUrl') || '';
+    if (urlGuardada) setTunnelUrl(urlGuardada);
   }, []);
 
   // Guardar datos
@@ -307,31 +298,26 @@ function FacturacionAutomatica() {
   }, [datosFacturacion]);
 
   useEffect(() => {
-    localStorage.setItem('ngrokUrl', ngrokUrl);
-  }, [ngrokUrl]);
+    localStorage.setItem('tunnelUrl', tunnelUrl);
+  }, [tunnelUrl]);
 
   // Obtener la URL base del backend
   const getBackendBaseUrl = () => {
     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    return isLocal ? 'http://localhost:3001' : (ngrokUrl || 'http://localhost:3001');
+    return isLocal ? 'http://localhost:3001' : (tunnelUrl || 'http://localhost:3001');
   };
 
-  // Verificar conexión con el robot al cargar + auto-detectar URL de ngrok
+  // Verificar conexión con el robot periódicamente
   useEffect(() => {
     const checkStatus = async () => {
       const baseUrl = getBackendBaseUrl();
       try {
         const response = await fetch(`${baseUrl}/status`, {
           cache: 'no-store',
-          headers: { 'ngrok-skip-browser-warning': 'true' }
+          headers: { 'Accept': 'application/json' }
         });
         if (response.ok) {
           setServerStatus('online');
-          const data = await response.json();
-          // Auto-guardar la URL de ngrok si el servidor la reporta
-          if (data.ngrokUrl && data.ngrokUrl !== ngrokUrl) {
-            setNgrokUrl(data.ngrokUrl);
-          }
         } else {
           setServerStatus('offline');
         }
@@ -342,7 +328,7 @@ function FacturacionAutomatica() {
     checkStatus();
     const interval = setInterval(checkStatus, 30000);
     return () => clearInterval(interval);
-  }, [ngrokUrl]);
+  }, [tunnelUrl]);
 
   const agregarTicket = (archivo) => {
     const nuevoTicket = {
@@ -710,7 +696,7 @@ function FacturacionAutomatica() {
   };
 
   const enviarAlRobot = async (ticket) => {
-    // Si estamos en localhost usar puerto directo, si no usar tunel ngrok
+    // Si estamos en localhost usar puerto directo, si no usar túnel
     const backendUrl = `${getBackendBaseUrl()}/facturar`;
 
     try {
@@ -718,7 +704,7 @@ function FacturacionAutomatica() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
+          'Accept': 'application/json'
         },
         body: JSON.stringify({
           ticket: {
@@ -993,15 +979,15 @@ function FacturacionAutomatica() {
                   <div className="bg-white/5 backdrop-blur-md p-6 rounded-xl border border-white/10 animate-in fade-in zoom-in duration-300">
                     <h2 className="text-xl font-semibold text-white mb-4">Configuración de Emisor</h2>
                     <div className="mb-4">
-                      <label className="block text-xs font-medium text-white/50 uppercase mb-1">URL del Robot (ngrok)</label>
+                      <label className="block text-xs font-medium text-white/50 uppercase mb-1">URL del Robot (Túnel)</label>
                       <input
                         type="text"
-                        placeholder="https://tu-url.ngrok-free.dev"
-                        value={ngrokUrl}
-                        onChange={(e) => setNgrokUrl(e.target.value.replace(/\/+$/, ''))}
+                        placeholder="https://tu-url.trycloudflare.com"
+                        value={tunnelUrl}
+                        onChange={(e) => setTunnelUrl(e.target.value.replace(/\/+$/, ''))}
                         className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                       />
-                      <p className="text-white/30 text-[10px] mt-1">Pega aquí la URL que muestra el servidor al iniciar. Se guarda automáticamente.</p>
+                      <p className="text-white/30 text-[10px] mt-1">Ejecuta: cloudflared tunnel --url http://localhost:3001 y pega la URL aquí.</p>
                     </div>
                     <div className="grid grid-cols-2 gap-4 mb-6">
                       <div>

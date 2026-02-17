@@ -94,7 +94,7 @@ async function facturarGasolina(ticket, config) {
             message: exito
                 ? '✓ FACTURACIÓN COMPLETADA: Revise la evidencia para descargar.'
                 : 'Robot en Portal: Datos ingresados. Revise la captura para el siguiente paso.',
-            evidencia: `data:image/png;base64,${screenshotBase64}`,
+            evidencia: `data:image/jpeg;base64,${screenshotBase64}`,
             datos: {
                 folio: ticket.datos?.folio || 'No cargado',
                 webid: ticket.datos?.webid || 'No cargado',
