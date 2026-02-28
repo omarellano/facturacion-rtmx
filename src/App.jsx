@@ -266,7 +266,6 @@ function FacturacionAutomatica() {
   const [escaneoQR, setEscaneoQR] = useState(false);
   const [evidenciaModal, setEvidenciaModal] = useState(null);
   const [serverStatus, setServerStatus] = useState('checking'); // checking, online, offline
-  const [tunnelUrl, setTunnelUrl] = useState('');
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
@@ -280,8 +279,6 @@ function FacturacionAutomatica() {
     if (ticketsGuardados.length > 0) setTickets(ticketsGuardados);
     if (Object.keys(credsGuardadas).length > 0) setCredenciales(credsGuardadas);
     if (Object.keys(datosGuardados).length > 0) setDatosFacturacion(datosGuardados);
-    const urlGuardada = localStorage.getItem('tunnelUrl') || '';
-    if (urlGuardada) setTunnelUrl(urlGuardada);
   }, []);
 
   // Guardar datos
@@ -297,14 +294,13 @@ function FacturacionAutomatica() {
     localStorage.setItem('datosFacturacion', JSON.stringify(datosFacturacion));
   }, [datosFacturacion]);
 
-  useEffect(() => {
-    localStorage.setItem('tunnelUrl', tunnelUrl);
-  }, [tunnelUrl]);
-
-  // Obtener la URL base del backend
+  // Obtener la URL base del backend desde variables de entorno
   const getBackendBaseUrl = () => {
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    return isLocal ? 'http://localhost:3001' : (tunnelUrl || 'http://localhost:3001');
+    return import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  };
+
+  const getApiKey = () => {
+    return import.meta.env.VITE_API_KEY || '';
   };
 
   // Verificar conexión con el robot periódicamente
@@ -328,7 +324,7 @@ function FacturacionAutomatica() {
     checkStatus();
     const interval = setInterval(checkStatus, 30000);
     return () => clearInterval(interval);
-  }, [tunnelUrl]);
+  }, []);
 
   const agregarTicket = (archivo) => {
     const nuevoTicket = {
@@ -704,7 +700,8 @@ function FacturacionAutomatica() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json'
+          'Accept': 'application/json',
+          'X-API-Key': getApiKey()
         },
         body: JSON.stringify({
           ticket: {
@@ -978,17 +975,6 @@ function FacturacionAutomatica() {
                 {mostrarConfig && (
                   <div className="bg-white/5 backdrop-blur-md p-6 rounded-xl border border-white/10 animate-in fade-in zoom-in duration-300">
                     <h2 className="text-xl font-semibold text-white mb-4">Configuración de Emisor</h2>
-                    <div className="mb-4">
-                      <label className="block text-xs font-medium text-white/50 uppercase mb-1">URL del Robot (Túnel)</label>
-                      <input
-                        type="text"
-                        placeholder="https://tu-url.trycloudflare.com"
-                        value={tunnelUrl}
-                        onChange={(e) => setTunnelUrl(e.target.value.replace(/\/+$/, ''))}
-                        className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white focus:ring-2 focus:ring-orange-500 outline-none text-sm"
-                      />
-                      <p className="text-white/30 text-[10px] mt-1">Ejecuta: cloudflared tunnel --url http://localhost:3001 y pega la URL aquí.</p>
-                    </div>
                     <div className="grid grid-cols-2 gap-4 mb-6">
                       <div>
                         <label className="block text-xs font-medium text-white/50 uppercase mb-1">RFC</label>

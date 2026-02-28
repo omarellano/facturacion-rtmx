@@ -15,23 +15,37 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
 
 app.use(cors({
     origin: (origin, callback) => {
+        // Permitir peticiones sin origin (curl, Postman, server-to-server)
         if (!origin) return callback(null, true);
-        // Permitir túneles de Cloudflare (trycloudflare.com)
-        if (origin.endsWith('.trycloudflare.com')) {
-            return callback(null, true);
-        }
         if (allowedOrigins.includes(origin)) {
             return callback(null, true);
         }
-        callback(null, true);
+        console.warn(`[CORS] Origen rechazado: ${origin}`);
+        callback(new Error('No permitido por CORS'));
     },
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key']
 }));
 
 app.use(express.json({ limit: '10mb' }));
 
 const PORT = process.env.PORT || 3001;
+
+// Middleware de API Key para proteger endpoints POST
+const apiKeyAuth = (req, res, next) => {
+    const apiKey = process.env.API_KEY;
+    // Si no hay API_KEY configurada, permitir todo (desarrollo local)
+    if (!apiKey) return next();
+
+    const providedKey = req.headers['x-api-key'];
+    if (!providedKey || providedKey !== apiKey) {
+        return res.status(401).json({
+            success: false,
+            message: 'API Key inválida o no proporcionada.'
+        });
+    }
+    next();
+};
 
 // Rate limiting simple (sin dependencia externa)
 const requestCounts = new Map();
@@ -80,16 +94,17 @@ const robots = {
     6: facturarGasolina, // FacturasGas
 };
 
+// Health check (sin autenticación)
 app.get('/status', (req, res) => {
     res.json({
         status: 'Robot Online',
-        version: '1.5.0',
+        version: '2.0.0',
         robots_disponibles: Object.keys(robots).length
     });
 });
 
-// Endpoint principal para facturación (con rate limiting y validación)
-app.post('/facturar', rateLimiter, async (req, res) => {
+// Endpoint principal para facturación (con rate limiting, API key y validación)
+app.post('/facturar', rateLimiter, apiKeyAuth, async (req, res) => {
     const { ticket, config, credenciales } = req.body;
 
     // Validación de input
@@ -141,12 +156,11 @@ let server;
 
 server = app.listen(PORT, () => {
     console.log(`=========================================`);
-    console.log(`Servidor de automatización CORRIENDO`);
+    console.log(`Servidor de Facturación v2.0.0`);
     console.log(`Puerto: ${PORT}`);
-    console.log(`Local: http://localhost:${PORT}`);
-    console.log(`-----------------------------------------`);
-    console.log(`Para acceso remoto ejecuta en otra terminal:`);
-    console.log(`  cloudflared tunnel --url http://localhost:${PORT}`);
+    console.log(`Entorno: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`CORS: ${allowedOrigins.join(', ')}`);
+    console.log(`API Key: ${process.env.API_KEY ? 'Activa' : 'Desactivada (dev)'}`);
     console.log(`=========================================`);
 });
 
